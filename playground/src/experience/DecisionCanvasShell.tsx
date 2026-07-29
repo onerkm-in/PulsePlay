@@ -18,7 +18,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-    Clock, Sparkles, MessageCircle, BarChart3, LayoutGrid, Bell, ShieldCheck,
+    Clock, Sparkles, MessageCircle, BarChart3, LayoutGrid, Home, Bell, ShieldCheck,
     CircleDollarSign, ListChecks, CheckCircle2, Bookmark, History,
 } from "lucide-react";
 import { ActionInsightsPanel, type DecisionViewFilter } from "../components/ActionInsightsPanel";
@@ -70,7 +70,7 @@ const NAV: Array<{ id: string; label: string; Icon: typeof Clock; unified?: bool
     // This entry IS the cockpit you are already on. It was labelled "Unified
     // Canvas" while the page title said "My Decision Canvas", which read like a
     // separate, unbuilt destination. "Overview" says what it is.
-    { id: "unified", label: "Overview", Icon: LayoutGrid, unified: true },
+    { id: "unified", label: "Overview", Icon: Home, unified: true },
     { id: "action-insights", label: "Decisions", Icon: Clock },
     { id: "ai-insights", label: "AI Insights", Icon: Sparkles },
     { id: "ask-pulse", label: "Ask Pulse", Icon: MessageCircle },
@@ -79,13 +79,17 @@ const NAV: Array<{ id: string; label: string; Icon: typeof Clock; unified?: bool
 
 const TERMINAL = new Set(["actioned", "rejected", "false-positive", "snoozed"]);
 const SEV_ORDER = ["critical", "high", "medium", "low"] as const;
+// FILL-grade tokens, not the text set: these paint donut arcs and bar fills,
+// and the AA-darkened text hues render as muddy olive/maroon at area size.
 const SEV_COLOR: Record<string, string> = {
-    critical: "var(--pp-bad)", high: "var(--pp-warn)", medium: "var(--pp-violet)", low: "var(--color-neutral-400, #b7b7ba)",
+    critical: "var(--pp-bad-fill, #d1453d)", high: "var(--pp-warn-fill, #e0902c)", medium: "var(--pp-violet-fill, #7c5cd8)", low: "var(--color-neutral-400, #b7b7ba)",
 };
 
 function initialsOf(name: string): string {
     const parts = name.trim().split(/\s+/).filter(Boolean);
-    if (!parts.length) return "n/a";
+    // "n/a" in an avatar circle read as an error state on mobile. A neutral
+    // person-ish glyph until a role resolves.
+    if (!parts.length) return "•";
     return (parts[0][0] + (parts[parts.length - 1][0] || "")).toUpperCase();
 }
 
@@ -486,7 +490,10 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
                                 </span>
                             )}
                         </div>
-                        <ActionInsightsPanel key={persona || "none"} proxyBase={proxyBase} assistantProfile={activeProfile} onData={setPrompts} onStatus={setStatus} onResolvedPersona={setResolved} hideHeader view={view} />
+                        {/* view ?? {} — the cockpit's DEFAULT is open-decisions-only:
+                            a done card under "Needs Your Decision" invites deciding it
+                            twice. Resolved ones live behind the green tile. */}
+                        <ActionInsightsPanel key={persona || "none"} proxyBase={proxyBase} assistantProfile={activeProfile} onData={setPrompts} onStatus={setStatus} onResolvedPersona={setResolved} hideHeader view={view ?? {}} />
                     </div>
 
                     {/* Since You Last Visited + My Canvas */}

@@ -11222,7 +11222,7 @@ function renderExecutiveBriefing(brief: ExecutiveBriefing): React.ReactNode {
     return (
         <div className="gn-briefing-card" data-testid="pp-exec-briefing">
             {brief.headline && (
-                <p className="gn-briefing-headline">{brief.headline}</p>
+                <p className="gn-briefing-headline">{parseBold(brief.headline)}</p>
             )}
 
             {brief.kpis.length > 0 && (
@@ -11269,7 +11269,7 @@ function renderExecutiveBriefing(brief: ExecutiveBriefing): React.ReactNode {
                                 <span className="gn-briefing-section-icon" aria-hidden="true">{sectionIcon[s.kind]}</span>
                                 <span className="gn-briefing-section-label">{s.label}</span>
                             </header>
-                            <p className="gn-briefing-section-body">{s.body}</p>
+                            <p className="gn-briefing-section-body">{parseBold(s.body)}</p>
                         </section>
                     ))}
                 </div>
@@ -11278,7 +11278,7 @@ function renderExecutiveBriefing(brief: ExecutiveBriefing): React.ReactNode {
             {brief.action && (
                 <p className="gn-narrative-action" data-testid="pp-briefing-action">
                     <span className="gn-narrative-action-label">Action ·</span>
-                    {brief.action}
+                    {parseBold(brief.action)}
                 </p>
             )}
         </div>

@@ -25,6 +25,10 @@ import {
     getEmbedConfig as getEmbedConfigForCoherence,
     setEmbedConfig,
 } from "../settings/embedConfigStore";
+import {
+    readRawGenieSettings,
+    writeRawGenieSettingsPatch,
+} from "../settings/pulseVisualSettingsStore";
 
 const ACTIVE_AI_PROFILE_KEY = "pulseplay:active-ai-profile";
 
@@ -177,6 +181,17 @@ export async function syncDeploymentDefaults(): Promise<SyncResult> {
                     detail: { key: ACTIVE_AI_PROFILE_KEY, value: pick },
                 }));
                 result.seededProfile = pick;
+                // The Pulse-ported surfaces (AI Insights, Ask Pulse) gate on
+                // their own genieSettings `isConfigured` check — the profile
+                // key alone leaves them stuck on "Connect an AI assistant".
+                // Mirror what settingsStore.setActiveAiProfile writes, but
+                // only into fields this browser has not set.
+                const raw = readRawGenieSettings();
+                const patch: Record<string, unknown> = {};
+                if (!raw.connectionMode) patch.connectionMode = "proxy";
+                if (!raw.apiBaseUrl && window.location?.origin) patch.apiBaseUrl = `${window.location.origin}/api`;
+                if (!raw.assistantProfile) patch.assistantProfile = pick;
+                if (Object.keys(patch).length) writeRawGenieSettingsPatch(patch);
             } catch { /* swallow */ }
         }
     }

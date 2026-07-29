@@ -60,7 +60,7 @@ export const ACTION_LABELS: Record<string, string> = {
     approve: "Approve & proceed",
     reject: "Reject",
     snooze: "Snooze",
-    mark_false_positive: "Mark false positive",
+    mark_false_positive: "This looks wrong",
     view_evidence: "View evidence",
 };
 
@@ -112,7 +112,10 @@ function actionQuestion(p: DecisionPrompt): string {
     // Strip the action's own terminal punctuation — otherwise a fix text
     // ending in "." renders "…coverage.?".
     const action = p.recommended_action.trim().replace(/[.!?\s]+$/, "");
-    return `Do you want me to ${action.toLowerCase()}?`;
+    // Lowercase ONLY the leading letter to fit mid-sentence. Lowercasing the
+    // whole string turned acronyms into typos: "raise sku redistribution".
+    const midSentence = action.charAt(0).toLowerCase() + action.slice(1);
+    return `Do you want me to ${midSentence}?`;
 }
 
 export function DecisionPromptCard({
@@ -256,12 +259,17 @@ export function DecisionPromptCard({
                 )}
 
                 {terminal && (
-                    <div className="dpc__terminal-status">Status: {prompt.status.replace("-", " ")}</div>
+                    <div className="dpc__terminal-status">
+                        {prompt.status === "actioned" ? "Done — the action was sent."
+                            : prompt.status === "rejected" ? "Closed — you said no."
+                                : prompt.status === "snoozed" ? "Snoozed — it will come back later."
+                                    : "Closed — marked as not a real problem."}
+                    </div>
                 )}
 
                 {awaitingApproval && (
                     <div className="dpc__terminal-status dpc__awaiting" role="status">
-                        Submitted - awaiting approval from {prompt.owner || "the owner"}.
+                        Sent for approval — waiting on the {(prompt.owner || "owner").replace("Supply Chain ", "")}.
                     </div>
                 )}
 
@@ -273,11 +281,22 @@ export function DecisionPromptCard({
                         </>)}
                         <div className="kicker">Evidence · audit note</div>
                         <pre className="dpc__pre">{prompt.narrative}</pre>
+                        <div className="card-meta">
+                            audit: {prompt.rule_id} · confidence {prompt.confidence} · action level {prompt.action_level} · status {prompt.status}
+                        </div>
                     </div>
                 )}
 
+                {/* Plain-language footer. The audit tokens (rule id, action level,
+                    raw status) moved into View evidence — they matter for audit,
+                    not for deciding. */}
                 <div className="dpc__meta">
-                    <span className="card-meta">confidence {prompt.confidence} · Level {prompt.action_level} · {prompt.rule_id} · owner {prompt.owner} · {prompt.status}</span>
+                    <span className="card-meta">
+                        {prompt.confidence === "high" ? "We're confident about this"
+                            : prompt.confidence === "medium" ? "We're fairly sure about this"
+                                : "This one is a weaker signal"}
+                        {" · handled by the "}{(prompt.owner || "owner").replace("Supply Chain ", "")}
+                    </span>
                     {terminal && <SaveChannel compact eligible={eligibleFromPrompt(prompt)} />}
                 </div>
             </div>

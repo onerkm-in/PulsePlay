@@ -78,13 +78,23 @@ function ageLabel(fetchedAt: number): string {
 export interface DecisionViewFilter {
     severity?: DecisionPrompt["severity"];
     status?: "awaiting-approval" | "resolved";
+    /** Include already-resolved prompts in the default view. OFF by default in
+     *  the cockpit: a card under "Needs Your Decision" that is already done
+     *  invites deciding it twice, and made the header count disagree with the
+     *  cards on screen. Resolved items live behind the "Already sorted by you"
+     *  tile instead. */
+    includeResolved?: boolean;
 }
 
+const TERMINAL_STATUSES = ["actioned", "rejected", "false-positive", "snoozed"];
+
 export function decisionMatchesView(p: DecisionPrompt, view?: DecisionViewFilter | null): boolean {
+    const terminal = TERMINAL_STATUSES.includes(p.status);
     if (!view) return true;
+    if (view.status === "resolved") return terminal;
+    if (terminal && !view.includeResolved) return false;
     if (view.severity && p.severity !== view.severity) return false;
-    if (view.status === "awaiting-approval" && !(p.approval_required && !["actioned", "rejected", "false-positive", "snoozed"].includes(p.status))) return false;
-    if (view.status === "resolved" && !["actioned", "rejected", "false-positive", "snoozed"].includes(p.status)) return false;
+    if (view.status === "awaiting-approval" && !p.approval_required) return false;
     return true;
 }
 
@@ -361,7 +371,9 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, onSta
 
             {view && prompts.length > 0 && visiblePrompts.length === 0 && (
                 <div className="text-muted" style={{ fontSize: 13.5, padding: "20px 0", textAlign: "center" }} role="status">
-                    Nothing matches this view.
+                    {(view.severity || view.status)
+                        ? "Nothing matches this view."
+                        : "Nothing needs your decision right now. You're all caught up."}
                 </div>
             )}
 

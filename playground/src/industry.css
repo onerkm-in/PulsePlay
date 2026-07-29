@@ -107,6 +107,14 @@
   --pp-warn: #8a5a15;   --pp-warn-soft: #fdf1e0;
   --pp-bad: #bd3a33;    --pp-bad-soft: #fbe7e6;
   --pp-violet: #6a49c4; --pp-violet-soft: #efe9fb;
+  /* FILL-grade set — the original vivid hues, for LARGE area fills only
+     (chart bars, donut arcs, severity fills). Large marks need 3:1 against
+     their surface, not 4.5:1, and the darkened text set above renders as
+     muddy olive/maroon when used as an area fill. Never use these for text. */
+  --pp-good-fill: #1f9d6b;
+  --pp-warn-fill: #e0902c;
+  --pp-bad-fill: #d1453d;
+  --pp-violet-fill: #7c5cd8;
 }
 
 /* Dark extension for the semantic palette — brighten text/icon hues for AA on
@@ -116,6 +124,11 @@
   --pp-warn: #f0a94b;   --pp-warn-soft: rgba(224,144,44,0.20);
   --pp-bad: #e8695f;    --pp-bad-soft: rgba(209,69,61,0.20);
   --pp-violet: #a58ae8; --pp-violet-soft: rgba(124,92,216,0.24);
+  /* Fill-grade set on dark: the vivid hues already read well on dark ground. */
+  --pp-good-fill: #2bb37c;
+  --pp-warn-fill: #eda13f;
+  --pp-bad-fill: #de5a50;
+  --pp-violet-fill: #8f70e0;
 }
 
 /* Ground + typography — scoped to adopting surfaces only. */

@@ -52,7 +52,7 @@
   display: flex; align-items: center; gap: 10px;
   padding: 11px 14px; border-radius: var(--radius-md, 4px);
   font-family: var(--font-heading); font-weight: 600; font-size: 13px;
-  color: var(--color-neutral-600, #7a7a7d);
+  color: var(--color-neutral-700, #5d5d60);
   cursor: pointer; border: 0; background: transparent;
   width: 100%; text-align: left; min-height: 44px; white-space: nowrap;
 }
@@ -83,7 +83,7 @@
   margin: 2px 0 0;
   font-size: 12.5px;
   line-height: 1.35;
-  color: var(--color-neutral-600, #6c6c70);
+  color: var(--color-neutral-700, #5d5d60);
 }
 @media (max-width: 960px) { .dcc-subtitle { display: none; } }
 .dcc-topbar-right { margin-left: auto; display: flex; align-items: center; gap: 14px; }
@@ -108,13 +108,17 @@
 }
 .dcc-persona-name { font-size: 12.5px; line-height: 1.3; max-width: 150px; }
 .dcc-persona-name b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dcc-persona-name span { color: var(--color-neutral-500, #98989b); font-size: 11px; }
+.dcc-persona-name span { color: var(--color-neutral-700, #5d5d60); font-size: 11px; }
 
 .dcc-content { flex: 1; padding: 24px 28px 60px; max-width: 1320px; width: 100%; margin: 0 auto; }
 .dcc-section-title { font-size: 15px; margin: 0; }
 
 /* ── KPI strip ── */
-.dcc-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 18px; margin-bottom: 22px; }
+.dcc-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; margin-bottom: 22px; }
+/* One band of four at desktop; 2x2 on tablets; single column on phones.
+   auto-fit + a nowrap chip inflated min-content and orphaned the 4th tile. */
+@media (max-width: 1100px) { .dcc-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .dcc-kpis { grid-template-columns: 1fr; } }
 .dcc-kpi { border-radius: var(--radius-lg, 7px); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--shadow-sm); }
 .dcc-kpi--good { background: var(--pp-good-soft); }
 .dcc-kpi--warn { background: var(--pp-warn-soft); }
@@ -173,14 +177,14 @@
 .dcc-list-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--color-divider); }
 .dcc-list-row:last-child { border-bottom: 0; }
 .dcc-list-label { font-size: 12.5px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dcc-list-ts { font-size: 11px; color: var(--color-neutral-500, #98989b); flex: 0 0 auto; }
-.dcc-statechip { border-radius: var(--radius-sm, 3px); padding: 3px 8px; font-size: 9.5px; font-weight: 700; font-family: var(--font-heading); flex: 0 0 auto; }
-.dcc-empty { font-size: 12.5px; color: var(--color-neutral-500, #98989b); line-height: 1.5; padding: 6px 0; }
+.dcc-list-ts { font-size: 11px; color: var(--color-neutral-700, #5d5d60); flex: 0 0 auto; }
+.dcc-statechip { border-radius: var(--radius-sm, 3px); padding: 3px 8px; font-size: 10.5px; font-weight: 700; font-family: var(--font-heading); flex: 0 0 auto; }
+.dcc-empty { font-size: 12.5px; color: var(--color-neutral-700, #5d5d60); line-height: 1.5; padding: 6px 0; }
 
 /* ── deferred (coming-soon) cards — read as intentional, not broken ── */
 .dcc-soon {
-  font-family: var(--font-heading); font-weight: 600; font-size: 10px; letter-spacing: 0.04em;
-  text-transform: uppercase; color: var(--color-neutral-500, #98989b);
+  font-family: var(--font-heading); font-weight: 600; font-size: 11px; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--color-neutral-700, #5d5d60);
   background: var(--color-neutral-100, #f5f5f8); border: 1px solid var(--color-divider);
   border-radius: var(--radius-sm, 3px); padding: 2px 8px;
 }
@@ -339,3 +343,21 @@ button.dcc-sevbar-row.is-picked {
   line-height: 1.4;
   color: var(--color-neutral-600, #6c6c70);
 }
+
+/* The tile's action line is the ONLY resting cue that KPI tiles are buttons —
+   it must not hide behind alpha (0.55 computed ~2.3:1). Full token colour at
+   rest; hover/focus emphasise via weight, not opacity. */
+.dcc-kpi-go { opacity: 1; font-size: 11px; }
+.dcc-kpi--good .dcc-kpi-go { color: var(--pp-good); }
+.dcc-kpi--warn .dcc-kpi-go { color: var(--pp-warn); }
+.dcc-kpi--bad .dcc-kpi-go { color: var(--pp-bad); }
+.dcc-kpi--violet .dcc-kpi-go { color: var(--pp-violet); }
+
+/* Narrow nav: keep the short labels VISIBLE. Icon-only nav asked a newcomer to
+   guess clock=Decisions, sparkle=Insights; 10.5px labels cost little space. */
+.dc-cockpit--narrow .dcc-navlink { flex-direction: column; gap: 3px; padding: 6px 10px; }
+.dc-cockpit--narrow .dcc-navlink span.dcc-navlabel {
+  display: block; font-size: 10.5px; line-height: 1; font-weight: 600;
+}
+.dc-cockpit--narrow .dcc-navbadge { position: absolute; top: 2px; right: 4px; margin: 0; }
+.dc-cockpit--narrow .dcc-navlink { position: relative; }

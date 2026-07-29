@@ -22,6 +22,7 @@ import {
     type ReactNode,
 } from "react";
 import type { PulsePlayAllowlist } from "../types/allowlist";
+import { fetchAllowlistShared } from "../lib/allowlistFetch";
 import type { PackSelection } from "../components/PackPicker";
 import { writePulseAiVisualSettingsPatch, writeRawGenieSettingsPatch } from "./pulseVisualSettingsStore";
 import {
@@ -789,26 +790,14 @@ export interface SettingsProviderProps {
     fetchAllowlist?: () => Promise<PulsePlayAllowlist>;
 }
 
-// In-flight dedup. The SettingsProvider fetches the allowlist on mount, and
-// React StrictMode double-invokes effects in dev, which fired the allowlist
-// GET two+ times in a burst on load. Concurrent callers now share one
-// in-flight request. We deliberately do not cache the resolved value, so a
-// later reloadAllowlist() still forces a fresh fetch; the governance
-// refresh must never be served stale.
-let _allowlistInflight: Promise<PulsePlayAllowlist> | null = null;
-
+// Shared with App's useAllowlist hook so one boot = ONE allowlist request
+// (COST-P2). The shared helper dedupes in-flight callers AND carries a
+// few-second TTL, because the two consumers fire sequentially during mount —
+// in-flight sharing alone never deduped them. An explicit user-triggered
+// refresh still always hits the server (force=true below in reload paths
+// that mean "refresh now").
 async function defaultFetchAllowlist(): Promise<PulsePlayAllowlist> {
-    if (_allowlistInflight) return _allowlistInflight;
-    _allowlistInflight = (async () => {
-        const res = await fetch("/api/assistant/allowlist");
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return (await res.json()) as PulsePlayAllowlist;
-    })();
-    try {
-        return await _allowlistInflight;
-    } finally {
-        _allowlistInflight = null;
-    }
+    return fetchAllowlistShared();
 }
 
 export function SettingsProvider(props: SettingsProviderProps): React.ReactElement {

@@ -121,7 +121,7 @@ const DEFAULTS: PulseAiVisualSettings = {
     showHistoryButton: false,
 };
 
-function readRawGenieSettings(): Record<string, unknown> {
+export function readRawGenieSettings(): Record<string, unknown> {
     if (typeof window === "undefined") return {};
     try {
         const raw = window.localStorage.getItem(PULSE_GENIE_SETTINGS_KEY);

@@ -2,12 +2,17 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { App } from "../App";
 import { queryClient } from "../lib/queryClient";
+import { __resetAllowlistFetch } from "../lib/allowlistFetch";
 
 describe("App Governance and React Query Integration", () => {
     beforeEach(() => {
         window.localStorage.clear();
         window.history.pushState({}, "", "/");
         queryClient.clear();
+        // The shared allowlist loader carries a boot-window cache (one request
+        // per boot, COST-P2); without a reset the SECOND test is served the
+        // FIRST test's allowlist and its fetch mock never fires.
+        __resetAllowlistFetch();
     });
 
     afterEach(() => {
