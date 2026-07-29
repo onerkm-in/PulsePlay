@@ -42,7 +42,7 @@ def _cell(kpi, mk, cat, region):
 def test_breach_otif_high():
     kpi = generate()["fact_supply_chain_kpi_monthly"]
     last = max(r["month_key"] for r in kpi)
-    c = _cell(kpi, last, "Refrigeration", "EMEA")
+    c = _cell(kpi, last, "Carbonated Drinks", "EMEA")
     assert 85.0 <= c["otif_pct"] < 90.0                 # 'high' band for SCM-OTIF-001
     assert c["supplier_on_time_pct"] < 85               # drives high-confidence root cause
     assert c["otif_deduction_cost"] + c["sla_penalty_cost"] > 5000  # USD impact present
@@ -51,7 +51,7 @@ def test_breach_otif_high():
 def test_breach_fill_stockout():
     kpi = generate()["fact_supply_chain_kpi_monthly"]
     last = max(r["month_key"] for r in kpi)
-    c = _cell(kpi, last, "Electronics", "NA")
+    c = _cell(kpi, last, "Salty Snacks", "NA")
     assert 85.0 <= c["line_fill_rate_pct"] < 90.0       # 'high' band for SCM-FILL-001
     assert c["on_hand_units"] < c["safety_stock_units"]  # stockout signal
     assert c["backorder_units"] > 0
@@ -60,7 +60,7 @@ def test_breach_fill_stockout():
 def test_breach_forecast_critical():
     kpi = generate()["fact_supply_chain_kpi_monthly"]
     last = max(r["month_key"] for r in kpi)
-    c = _cell(kpi, last, "Seasonal", "APAC")
+    c = _cell(kpi, last, "Juices & Water", "APAC")
     assert c["forecast_accuracy_pct"] < 70.0            # 'critical' for SCM-FA-001
     assert abs(c["forecast_bias_pct"]) >= 10            # persistent bias
 
@@ -68,15 +68,15 @@ def test_breach_forecast_critical():
 def test_breach_inventory_category_critical():
     kpi = generate()["fact_supply_chain_kpi_monthly"]
     last = max(r["month_key"] for r in kpi)
-    dos = [r["days_of_supply"] for r in kpi if r["month_key"] == last and r["category"] == "Legacy Parts"]
+    dos = [r["days_of_supply"] for r in kpi if r["month_key"] == last and r["category"] == "Cereals & Bars"]
     assert sum(dos) / len(dos) > 110.0                  # avg DoS 'critical' for SCM-INV-001
 
 
 def test_breach_supplier_critical():
     sc = generate()["fact_supplier_scorecard_monthly"]
     last = max(r["month_key"] for r in sc)
-    nakamura = next(s["supplier_key"] for s in generate()["dim_supplier"] if s["supplier_name"] == "Nakamura Components")
-    row = next(r for r in sc if r["month_key"] == last and r["supplier_key"] == nakamura)
+    flavours_supplier = next(s["supplier_key"] for s in generate()["dim_supplier"] if s["supplier_name"] == "Sakura Flavours")
+    row = next(r for r in sc if r["month_key"] == last and r["supplier_key"] == flavours_supplier)
     assert row["on_time_pct"] < 75.0                    # 'critical' for SCM-SUPP-001
 
 
@@ -85,11 +85,11 @@ def test_baseline_does_not_over_trigger():
     injected breaches fire (no accidental extra prompts from baseline noise)."""
     kpi = generate()["fact_supply_chain_kpi_monthly"]
     last = max(r["month_key"] for r in kpi)
-    breaches = {("Refrigeration", "EMEA"), ("Electronics", "NA"), ("Seasonal", "APAC")}
+    breaches = {("Carbonated Drinks", "EMEA"), ("Salty Snacks", "NA"), ("Juices & Water", "APAC")}
     for r in kpi:
         if r["month_key"] != last or (r["category"], r["region"]) in breaches:
             continue
-        if r["category"] == "Legacy Parts":
+        if r["category"] == "Cereals & Bars":
             continue  # inventory breach is category-wide
         assert r["otif_pct"] >= 92.0                    # not below SCM-OTIF medium
         assert r["line_fill_rate_pct"] >= 93.0          # not below SCM-FILL medium

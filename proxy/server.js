@@ -356,7 +356,11 @@ const ENV_PROFILE_FIELDS = {
     // which dashboard the Dashboard surface renders natively (same rationale
     // as POWERBI_REPORT_ID above).
     LAKEVIEW_DASHBOARD_ID: 'lakeviewDashboardId',
-    LAKEVIEWDASHBOARDID: 'lakeviewDashboardId'
+    LAKEVIEWDASHBOARDID: 'lakeviewDashboardId',
+    // Decision-feed domain scope (e.g. "SCM-"): the deployment declares which
+    // rule family its Decisions surface shows from the shared prompt store.
+    DECISION_RULE_PREFIX: 'decisionRulePrefix',
+    DECISIONRULEPREFIX: 'decisionRulePrefix'
 };
 
 function loadEnvProfiles(env = process.env) {

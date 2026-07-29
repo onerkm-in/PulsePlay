@@ -1,4 +1,7 @@
-"""Deterministic generator for the synthetic supply-chain star schema.
+"""Deterministic generator for the synthetic CPG/FMCG supply-chain star schema.
+
+Domain: a LATAM-centred consumer-packaged-goods company (beverages & snacks) -
+the same story the Genie space tells. Names are illustrative, not any real brand.
 
 Pure and seeded: `generate(seed)` returns a dict of table_name -> list[row dict],
 identical for a given seed (uses random.Random, no clock, no os entropy). Column
@@ -14,34 +17,34 @@ import random
 from datetime import date
 
 # ── fixed reference dimensions (match the live demo's names) ──────────────────
-CATEGORIES = ["Electronics", "Legacy Parts", "Refrigeration", "Seasonal"]
+CATEGORIES = ["Carbonated Drinks", "Salty Snacks", "Juices & Water", "Cereals & Bars"]
 REGIONS = ["APAC", "EMEA", "LATAM", "NA"]
 FIRST_YEAR, N_MONTHS = 2023, 36  # 202301 .. 202512
 
 SUB_CATEGORIES = {
-    "Electronics": [("Displays", "DI"), ("Sensors", "SE"), ("Controllers", "CT")],
-    "Legacy Parts": [("Fittings", "FI"), ("Housings", "HO")],
-    "Refrigeration": [("Compressors", "CO"), ("Coils", "CL"), ("Valves", "VA")],
-    "Seasonal": [("Heaters", "HE"), ("Coolers", "CoL")],
+    "Carbonated Drinks": [("Cola", "CO"), ("Citrus", "CI"), ("Diet", "DT")],
+    "Salty Snacks": [("Potato Chips", "PC"), ("Tortilla Chips", "TC"), ("Extruded", "EX")],
+    "Juices & Water": [("Nectars", "NE"), ("Still Water", "SW")],
+    "Cereals & Bars": [("Oat Bars", "OB"), ("Breakfast Cereal", "BC")],
 }
-CAT_CODE = {"Electronics": "ELE", "Legacy Parts": "LEG", "Refrigeration": "REF", "Seasonal": "SEA"}
+CAT_CODE = {"Carbonated Drinks": "CSD", "Salty Snacks": "SNK", "Juices & Water": "JUW", "Cereals & Bars": "CER"}
 
 SUPPLIERS = [
-    ("Nakamura Components", 1, "Japan", "APAC", 2010),
-    ("Rhein Industrial", 1, "Germany", "EMEA", 2005),
-    ("Atlas Parts Co", 2, "USA", "NA", 2015),
-    ("Meridian Supply", 2, "USA", "NA", 2020),
-    ("Iberia Logistics", 2, "Spain", "EMEA", 2005),
-    ("Nordic Precision", 1, "Sweden", "EMEA", 2008),
-    ("Shanghai Fabrication", 2, "China", "APAC", 2013),
-    ("Andes Manufacturing", 3, "Chile", "LATAM", 2018),
-    ("Ganges Assembly", 3, "India", "APAC", 2016),
-    ("Copperfield Metals", 2, "UK", "EMEA", 2007),
-    ("Pacific Rim Parts", 2, "Taiwan", "APAC", 2012),
-    ("Volga Components", 3, "Poland", "EMEA", 2019),
-    ("Cascade Industrial", 1, "Canada", "NA", 2009),
-    ("Sierra Supply", 3, "Mexico", "LATAM", 2017),
-    ("Kanto Precision", 2, "Japan", "APAC", 2011),
+    ("Sakura Flavours", 1, "Japan", "APAC", 2010),
+    ("Rhein Packaging", 1, "Germany", "EMEA", 2005),
+    ("Atlas Sweeteners", 2, "USA", "NA", 2015),
+    ("Meridian Bottling", 2, "USA", "NA", 2020),
+    ("Iberia Cold Chain", 2, "Spain", "EMEA", 2005),
+    ("Nordic Oats", 1, "Sweden", "EMEA", 2008),
+    ("Shanghai PET Resin", 2, "China", "APAC", 2013),
+    ("Andes Fruit Concentrates", 3, "Chile", "LATAM", 2018),
+    ("Ganges Spice Blends", 3, "India", "APAC", 2016),
+    ("Copperfield Cartons", 2, "UK", "EMEA", 2007),
+    ("Pacific Rim Films", 2, "Taiwan", "APAC", 2012),
+    ("Volga Grain Co", 3, "Poland", "EMEA", 2019),
+    ("Cascade Potato Farms", 1, "Canada", "NA", 2009),
+    ("Sierra Corn Mills", 3, "Mexico", "LATAM", 2017),
+    ("Kanto Tea Extracts", 2, "Japan", "APAC", 2011),
 ]
 
 LOCATIONS = [
@@ -59,11 +62,11 @@ CARRIERS = [("Ground Express", "ground"), ("AirFast", "air"), ("OceanLine", "oce
 # supplier / category aggregate) into a target severity band so a specific rule
 # fires. These mirror the live demo's headline findings.
 BREACHES = {
-    "otif": ("Refrigeration", "EMEA", 86.9),          # SCM-OTIF-001 -> high
-    "fill": ("Electronics", "NA", 86.1),              # SCM-FILL-001 -> high (stockout)
-    "forecast": ("Seasonal", "APAC", 67.8, 18.0),     # SCM-FA-001 -> critical, +18% bias
-    "inventory_category": "Legacy Parts",             # SCM-INV-001 -> critical (avg DoS > 110)
-    "supplier_name": "Nakamura Components",           # SCM-SUPP-001 -> critical (on-time 72%)
+    "otif": ("Carbonated Drinks", "EMEA", 86.9),      # SCM-OTIF-001 -> high
+    "fill": ("Salty Snacks", "NA", 86.1),             # SCM-FILL-001 -> high (stockout)
+    "forecast": ("Juices & Water", "APAC", 67.8, 18.0),  # SCM-FA-001 -> critical, +18% bias
+    "inventory_category": "Cereals & Bars",           # SCM-INV-001 -> critical (avg DoS > 110)
+    "supplier_name": "Sakura Flavours",               # SCM-SUPP-001 -> critical (on-time 72%)
 }
 
 

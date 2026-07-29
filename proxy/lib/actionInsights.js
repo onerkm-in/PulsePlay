@@ -61,7 +61,19 @@ function makeListHandler(deps) {
             });
         }
         // Manager sees all; Planner sees own persona's prompts.
-        const personaWhere = persona === MANAGER ? '' : `WHERE persona = ${store.sq(PLANNER)}`;
+        // Domain scope: a deployment can declare which rule family its
+        // decision feed shows (profile `decisionRulePrefix`, e.g. "SCM-").
+        // The store may hold prompts from several demo domains; without the
+        // scope a supply-chain cockpit surfaced customer-support SLA cards
+        // (user 2026-07-29: "our source should be our synthetic data only,
+        // that too supply chain"). Filtered at the QUERY - never deleted
+        // (decision_prompts is append-audit, bulk deletes are forbidden).
+        const rawPrefix = String(resolved.profile.decisionRulePrefix || '').trim();
+        const rulePrefix = /^[A-Za-z0-9_-]{1,32}$/.test(rawPrefix) ? rawPrefix : '';
+        const clauses = [];
+        if (persona !== MANAGER) clauses.push(`persona = ${store.sq(PLANNER)}`);
+        if (rulePrefix) clauses.push(`rule_id LIKE ${store.sq(rulePrefix + '%')}`);
+        const personaWhere = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
         try {
             const prompts = await store.listPrompts(resolved.profile, databricksRequest, { personaWhere });
             for (const row of prompts) row.allowed_actions = allowedActionsFor(row, persona);

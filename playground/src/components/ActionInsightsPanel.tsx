@@ -135,6 +135,18 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, onSta
     const [busyId, setBusyId] = useState<string | null>(null);
     const [demoPersona, setDemoPersona] = useState<string>(() => readDemoPersona());
 
+    // Elapsed-time ticker for the initial load. A cold SQL warehouse takes
+    // ~10-20s to wake; a skeleton alone doesn't show that time is PASSING, so
+    // the wait read as a disconnect. A counting timer plus an honest
+    // expectation line keeps the user connected to a wait we can't shorten.
+    const [loadingSeconds, setLoadingSeconds] = useState(0);
+    useEffect(() => {
+        if (!(loading && !data)) return;
+        setLoadingSeconds(0);
+        const t = window.setInterval(() => setLoadingSeconds((s) => s + 1), 1000);
+        return () => window.clearInterval(t);
+    }, [loading, data]);
+
     const base = proxyBase || "";
     // The prompt store lives on a Databricks SQL warehouse, so the proxy must
     // resolve a profile that carries one. Without an explicit profile the
@@ -337,8 +349,18 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, onSta
                 // real ones read as "working", and set the layout up front so
                 // arriving prompts don't shift the page.
                 <div data-testid="action-insights-skeleton" aria-busy="true" aria-live="polite">
-                    <div className="text-muted" style={{ fontSize: 12.5, marginBottom: 10 }}>
-                        Scanning KPIs for decisions…
+                    <div className="dpc-skel__status">
+                        <span className="dpc-skel__spinner" aria-hidden />
+                        <span className="text-muted" style={{ fontSize: 12.5 }}>
+                            {loadingSeconds < 4
+                                ? "Checking your supply chain…"
+                                : loadingSeconds < 20
+                                    ? "Waking the data warehouse — the first load of the day takes ~15 seconds."
+                                    : "Still working — the warehouse is taking longer than usual."}
+                        </span>
+                        <span className="dpc-skel__timer" data-testid="action-insights-timer">
+                            {Math.floor(loadingSeconds / 60)}:{String(loadingSeconds % 60).padStart(2, "0")}
+                        </span>
                     </div>
                     {[0, 1, 2].map((i) => (
                         <div key={i} className="dpc-skel" style={{ animationDelay: `${i * 120}ms` }}>

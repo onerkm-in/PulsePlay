@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import { render, screen, waitFor, cleanup, act } from "@testing-library/react";
 import { ActionInsightsPanel } from "../ActionInsightsPanel";
 
 /**
@@ -99,5 +99,29 @@ describe("Decisions auto-load", () => {
         }
         await new Promise(r => setTimeout(r, 20));
         expect(spy).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe("initial-load timer", () => {
+    beforeEach(() => {
+        window.sessionStorage.clear();
+        window.localStorage.clear();
+    });
+    afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers(); });
+
+    it("counts elapsed time while the warehouse wakes, so the wait visibly progresses", async () => {
+        vi.useFakeTimers();
+        // a fetch that never settles - the loading state is what's under test
+        vi.stubGlobal("fetch", vi.fn().mockReturnValue(new Promise(() => { })));
+        render(<ActionInsightsPanel proxyBase="/api" assistantProfile="genie-scm-poc" />);
+
+        expect(screen.getByTestId("action-insights-timer").textContent).toBe("0:00");
+        await act(async () => { vi.advanceTimersByTime(7000); });
+        expect(screen.getByTestId("action-insights-timer").textContent).toBe("0:07");
+        // the message escalates honestly instead of pretending it is instant
+        expect(screen.getByTestId("action-insights-skeleton").textContent).toContain("Waking the data warehouse");
+        await act(async () => { vi.advanceTimersByTime(60000); });
+        expect(screen.getByTestId("action-insights-timer").textContent).toBe("1:07");
+        expect(screen.getByTestId("action-insights-skeleton").textContent).toContain("taking longer than usual");
     });
 });
