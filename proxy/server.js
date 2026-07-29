@@ -48,6 +48,7 @@
  * @property {number} createdAt
  */
 
+const spendGuard = require('./lib/spendGuard');
 const express = require('express');
 const https = require('https');
 const http = require('http');
@@ -2786,6 +2787,20 @@ async function handleDatabricksList(req, res, options) {
         return res.status(mapped.status).json({ ok: false, error: mapped.error });
     }
 }
+
+// ── AI spend budget (tokenomics) ─────────────────────────────────────────────
+// Read-only view of today's model-token budget. Exposed so a user can SEE the
+// budget before spending it, and so any agentic surface can show what a run
+// will cost against what is left. Enforcement lives in lib/spendGuard.js and
+// is fail-closed; this endpoint never mutates the ledger.
+app.get('/assistant/spend', (req, res) => {
+    try {
+        res.set('Cache-Control', 'no-store');
+        return res.json({ ok: true, ...spendGuard.status() });
+    } catch (err) {
+        return res.status(503).json({ ok: false, error: String(err.message || err).slice(0, 200) });
+    }
+});
 
 app.get('/assistant/genie/spaces', async (req, res) => {
     return handleDatabricksList(req, res, {
