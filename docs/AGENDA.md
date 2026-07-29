@@ -8,6 +8,37 @@
 
 Ordered by impact × cost. Each item is independently shippable.
 
+- [~] **RESPONSIVE-2026-07-29 — measured, mostly already covered; two evidence gaps remain** —
+  Measurement pass against the PRODUCTION bundle (preview 7003 → proxy 7000),
+  CDP device emulation, geometry measured in-page (page/element overflow past
+  the viewport, non-scrollable containers whose content exceeds their box,
+  chart canvases escaping their host). **Result: no defects found on the axes
+  measured.** All four surfaces (Decisions / AI Insights / Ask Pulse /
+  Dashboard) at a true **390 x 844 mobile viewport**, at ~502px, and at 1442px:
+  `pageOverflow 0`, `overflowingElements 0`, `clippedContainers 0`. Lakeview
+  Dashboard with real content: at 390px a single **370px** column, 31 cards,
+  0 overflow; at **1920px** the grid reflows to **5 columns** (cards 369px, tables
+  748px spanning 2), 0 overflow, and no `max-width` container stranding dead
+  space. Also confirmed the new viewport-gating live: only 5 of 15 chart
+  canvases initialised at 390px and 7 at 1920px, i.e. off-screen charts cost
+  nothing. Conclusion: the earlier responsive work (memory
+  `feature_gemini_master_spec_impl`) is holding; **do not re-do it**.
+  **GAP 1 (partially closed):** the first pass measured AI Insights and Ask
+  Pulse in their empty/CTA state, which proves little — overflow appears WITH
+  content. A follow-up sent one real Genie question through **Ask Pulse at
+  390px**: content rendered (7 chart canvases) and the surface stayed clean —
+  `pageOverflow 0`, `overflowingElements 0`, `clippedContainers 0`. **Still
+  unproven:** a wide TABLE and a wide SQL/code block, which are the most
+  overflow-prone shapes; the question returned charts, not a table. AI Insights
+  with a full briefing is also still unmeasured (costs several Genie calls).
+  **GAP 2:** the cockpit/combined ("Unified") experience mode was NOT measured —
+  it must be published by an author, and only the segregated 4-tab layout was
+  exercised.
+  **Non-defect, noted:** 8-10 text nodes render below 11px (e.g. the 10.5px
+  uppercase impact labels in `decisionPromptCard.css`). That is a deliberate
+  design choice; introducing a legibility floor is a product decision, not a bug
+  fix.
+
 - [~] **CLEAN-CODE-D5/D11 — incremental maintainability gates** — Audit:
   [Clean Code conformance, 2026-07-28](research/CLEAN_CODE_CONFORMANCE_AUDIT_2026-07-28.md).
   Execute existing D5 Phase 1 mechanically; baseline correctness-first ESLint
