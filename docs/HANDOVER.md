@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-07-29 (latest+34) — full headed walkthrough: 2 dead things killed, 1 gap closed, 1 own regression caught
+
+Commit `a9a5215`. Playground **1,984/1,984**, tsc + build clean. All five screens walked live at desktop + a true 390×844 emulated phone.
+
+**Killed: the dead 8787 proxy-base fallback.** `readConfiguredProxyBase()` fell back to `http://127.0.0.1:8787` — nothing listens there under the canonical ports, so any browser profile without a saved `apiBaseUrl` had Decisions fail its first fetch ("Failed to fetch") while the cockpit (which falls back to `/api`) worked. Now `/api` everywhere; explicit setting still wins. Predates auto-load — the old button failed identically on a fresh profile.
+
+**Closed: cockpit → sub-screen was one-way.** No route back to Overview existed. Two implementations because the switcher lives in two worlds: app-level `SurfaceSwitcher` gets a leading "< Overview" via `OverviewNavContext` (context, NOT `useExperienceMode()` per instance — that would refetch config per switcher); the Pulse workbench strip renders in its **own React root** where context can't reach, so App stamps `data-pp-overview-nav` on `<html>` and the strip sends `"overview"` over the existing viewport-action bridge. Gated off in segregated mode and the PBI sandbox — no dead button where no cockpit exists.
+
+**Caught my own regression at 390px:** the sidebar viewport pin (sticky + 100vh) broke narrow mode, where `.dcc-side` becomes a horizontal strip — icons centred in an empty full-height band, content below the fold. Scoped out of `.dc-cockpit--narrow`. The geometry probe missed it (no horizontal overflow); the screenshot caught it. **Tripwire: overflow probes cannot detect vertical-layout breakage — always eyeball a screenshot too.**
+
+**Dashboard on this box must be the native Lakeview pair.** A fresh profile seeds the Power BI embed vendor, which is env-blocked here (C1, no SP creds) → `BI_EMBED_FAILED`. Rebound live to `databricks-aibi` + the SCM Lakeview dashboard; renders natively (KPI counters + ECharts). The adapter picks native ONLY when the embed config carries `assistantProfile` + `dashboardId` — without the profile it silently falls to iframe and CSP (correctly) blocks the frame. Still open: the deployment default / `CANDIDATE_PAIRS` doesn't offer the all-Databricks pair, so out-of-the-box Dashboard on this box fails until hand-bound.
+
+**MCP feasibility (user ask): CONFIRMED, recorded as AGENDA `MCP-CONNECTOR`.** Managed MCP servers exist for Genie/UC-functions/SQL/vector-search with on-behalf-of-user auth; right shape = proxy-side MCP client as a Phase A connector plugin; no MCP surface for Lakeview (keep REST). Also the reverse play: expose PulsePlay itself as a custom MCP server.
+
+---
+
 ## 2026-07-29 (latest+33) — the "dead shell" was one starved fetch; cockpit is now the default
 
 Commits `9f22837` (auto-load + default mode) · `71b6d95` (plain language, sidebar, loading honesty) · `fc57c72` (severity strip). Playground **1,984/1,984** across 154 files; proxy **1,528/1,528** across 85 suites; tsc + production build clean.

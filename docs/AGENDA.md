@@ -19,6 +19,24 @@ Ordered by impact × cost. Each item is independently shippable.
   twelve canvas contexts and twelve `init` calls for a 60x18px graphic. Note the
   endpoint already costs 9.3s on a cold warehouse; measure before and after.
 
+- [ ] **MCP-CONNECTOR — Databricks managed MCP as an X-axis connector variant
+  (feasibility CONFIRMED 2026-07-29)** — Databricks ships managed MCP servers on
+  serverless: Genie (`/api/2.0/mcp/genie/{space_id}`, Beta), UC functions
+  (`/api/2.0/mcp/functions/{cat}/{schema}/{fn}`), Databricks SQL
+  (`/api/2.0/mcp/sql`, async poll), AI/vector search — all Public Preview, all
+  with on-behalf-of-user auth inheriting UC permissions. Feasible for the 4-UI
+  shade as a PROXY-SIDE MCP client (Streamable HTTP; browser never speaks MCP),
+  fitting the connector-plugin Phase A contract as `databricks-mcp`. Where it
+  pays: (a) Decisions via a UC function per rule keeps SQL server-defined —
+  same "browser never sends SQL" property we already enforce; (b) the future
+  DEC-AGENT executor gets standardized tools with per-user UC permission
+  inheritance, which is a real piece of the missing spend/authority guardrail;
+  (c) reverse direction — exposing PulsePlay's governed endpoints AS a custom
+  MCP server (databrickslabs/mcp pattern, hostable on Databricks Apps) makes
+  PulsePlay itself plug-and-play for ANY MCP agent. Where it does NOT pay:
+  Lakeview dashboard rendering has no MCP surface — keep the REST spec path.
+  Status caveats: Beta/Public Preview, serverless required.
+
 - [ ] **DEC-AGENT — the agentic step on a decision card** — cards today end at a
   governed action POST (rules engine → HITL). The plug-and-play shape is to keep
   the card's producer swappable so a Genie/agent-authored prompt renders through
