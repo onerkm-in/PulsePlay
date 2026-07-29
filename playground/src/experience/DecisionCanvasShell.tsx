@@ -24,6 +24,9 @@ import {
 import { ActionInsightsPanel, type DecisionViewFilter } from "../components/ActionInsightsPanel";
 import type { DecisionPrompt } from "../components/DecisionPromptCard";
 import { MyCanvasRegion } from "../canvas/MyCanvasRegion";
+import { SavedItemsRegion } from "../canvas/SavedItemsRegion";
+import { diffSinceLastVisit, writeSnapshot, agoLabel } from "./sinceLastVisit";
+import { suggestDecisions } from "./suggestions";
 import "./decisionCanvas.css";
 
 function readProxyBase(): string {
@@ -170,6 +173,87 @@ function SeverityDonut({ counts, picked, onPick }: {
                 ))}
                 {!present.length && <span className="dcc-empty" style={{ padding: 0 }}>No open decisions.</span>}
             </div>
+        </div>
+    );
+}
+
+/** What moved since the last visit — a real diff, or an honest first-visit note. */
+function SinceLastVisitCard({ prompts, scanning, onOpen }: {
+    prompts: DecisionPrompt[]; scanning: boolean; onOpen: () => void;
+}) {
+    const diff = useMemo(() => (scanning ? null : diffSinceLastVisit(prompts)), [prompts, scanning]);
+    // Snapshot AFTER diffing, so this visit becomes the baseline for the next.
+    useEffect(() => {
+        if (!scanning && prompts.length) writeSnapshot(prompts);
+    }, [prompts, scanning]);
+
+    return (
+        <div className="dcc-card dcc-pad">
+            <div className="dcc-chart-head">
+                <h3 className="dcc-section-title">Since You Last Visited</h3>
+                {diff && <span className="dcc-list-ts">last seen {agoLabel(diff.at)}</span>}
+            </div>
+            {scanning && <p className="dcc-empty">Checking what changed…</p>}
+            {!scanning && !diff && (
+                <p className="dcc-empty">
+                    This is your first visit on this device, so there's nothing to compare yet.
+                    Next time, anything that changed will be listed here.
+                </p>
+            )}
+            {!scanning && diff && !diff.changes.length && (
+                <p className="dcc-empty">Nothing changed since you were last here.</p>
+            )}
+            {!scanning && diff && diff.changes.length > 0 && (
+                <ul className="dcc-changes">
+                    {diff.changes.slice(0, 6).map((c) => (
+                        <li key={c.prompt_id + c.kind}>
+                            <button type="button" className="dcc-change" onClick={onOpen}>
+                                <span className={`dcc-changetag dcc-changetag--${c.kind}`}>
+                                    {c.kind === "new" ? "NEW" : c.kind === "resolved" ? "RESOLVED" : "UPDATED"}
+                                </span>
+                                <span className="dcc-change-text">
+                                    <b>{c.headline}</b> — {c.detail}
+                                </span>
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </div>
+    );
+}
+
+/** Up to three next-best actions, each with a checkable reason. No LLM. */
+function SuggestionsCard({ prompts, scanning, onOpen }: {
+    prompts: DecisionPrompt[]; scanning: boolean; onOpen: () => void;
+}) {
+    const picks = useMemo(() => (scanning ? [] : suggestDecisions(prompts)), [prompts, scanning]);
+    return (
+        <div className="dcc-card dcc-pad">
+            <div className="dcc-chart-head">
+                <h3 className="dcc-section-title">Suggested for You</h3>
+                {/* Not an "AI" chip: these are computed from your data, and the
+                    badge would claim a provenance this does not have. */}
+                <span className="dcc-list-ts">ranked from your data · not AI</span>
+            </div>
+            {scanning && <p className="dcc-empty">Working out where to start…</p>}
+            {!scanning && !picks.length && (
+                <p className="dcc-empty">Nothing needs your decision right now, so there's nothing to suggest.</p>
+            )}
+            <ul className="dcc-suggests">
+                {picks.map((s) => (
+                    <li key={s.prompt_id}>
+                        <button type="button" className="dcc-suggest" onClick={onOpen}>
+                            <span className="dcc-dot" style={{ background: SEV_COLOR[s.severity] }} />
+                            <span className="dcc-suggest-text">
+                                <b>{s.title}</b>
+                                <span className="dcc-suggest-head">{s.headline}</span>
+                                <span className="dcc-suggest-why">{s.why}</span>
+                            </span>
+                        </button>
+                    </li>
+                ))}
+            </ul>
         </div>
     );
 }
@@ -538,30 +622,20 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
                         <ActionInsightsPanel key={persona || "none"} proxyBase={proxyBase} assistantProfile={activeProfile} onData={setPrompts} onStatus={setStatus} onResolvedPersona={setResolved} hideHeader view={view ?? {}} />
                     </div>
 
-                    {/* Since You Last Visited + My Canvas */}
+                    {/* All four regions below are LIVE — they read the prompts
+                        this page already fetched, or the canvas store. No
+                        placeholders: a "coming soon" card on a product screen
+                        is indistinguishable from a broken one. */}
                     <div className="dcc-two">
-                        <DeferredCard
-                            title="Since You Last Visited"
-                            Icon={History}
-                            note="Change tracking (Updated / Stale / Resolved / New) arrives with the relevance phase. It will list items that moved since your last session."
-                        />
+                        <SinceLastVisitCard prompts={prompts} scanning={scanning} onOpen={() => applyView(null)} />
                         <div className="dcc-card dcc-pad">
                             <MyCanvasRegion />
                         </div>
                     </div>
 
-                    {/* Saved Items + Suggested */}
                     <div className="dcc-two">
-                        <DeferredCard
-                            title="Saved Items"
-                            Icon={Bookmark}
-                            note="Bookmarks and snapshots not currently pinned to the Canvas will list here once server-side saved-item persistence ships."
-                        />
-                        <DeferredCard
-                            title="Suggested for You" ai
-                            Icon={Sparkles}
-                            note="Up to three explainable, governed suggestions arrive with the relevance phase. Suggestions never change your permissions or a decision's severity."
-                        />
+                        <SavedItemsRegion />
+                        <SuggestionsCard prompts={prompts} scanning={scanning} onOpen={() => applyView(null)} />
                     </div>
                 </div>
             </div>

@@ -26,6 +26,9 @@ export interface DecisionPrompt {
     kpi: string;
     severity: "critical" | "high" | "medium" | "low";
     confidence: "high" | "medium" | "low";
+    /** 0-1 detection confidence. Present in the API payload; typed here so
+     *  ranking code can use it without casting. */
+    confidence_score?: number | string;
     headline: string;
     issue: string;
     root_cause: string;
