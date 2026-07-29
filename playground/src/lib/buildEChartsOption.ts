@@ -329,6 +329,35 @@ function axisFormatterForSeries(series: ReadonlyArray<SeriesWithUnit>): { format
  *  majority unit (and the chart-rationale warning already flags mixed-unit
  *  shapes separately). */
 function tooltipWithFormatter(series: ReadonlyArray<SeriesWithUnit>): Record<string, unknown> {
+    // Mixed-unit chart: `valueFormatter` has no series context, so a single
+    // "dominant" unit stamped every line — three % metrics beside Net Sales
+    // turned a revenue figure into "1902440231.0%" (user screenshot,
+    // 2026-07-29). The full `formatter` callback DOES know which series each
+    // line belongs to, so every line wears its own unit.
+    if (hasMixedUnits(series)) {
+        const esc = (t: unknown) => String(t ?? '').replace(/[&<>"']/g, (c) =>
+            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+        return {
+            ...TOOLTIP_STYLE,
+            formatter: (params: unknown) => {
+                const list = (Array.isArray(params) ? params : [params]) as Array<{
+                    seriesIndex?: number; seriesName?: string; marker?: string;
+                    axisValueLabel?: string; name?: string; value?: unknown;
+                }>;
+                const title = esc(list[0]?.axisValueLabel ?? list[0]?.name ?? '');
+                const lines = list.map((pt) => {
+                    const su = series[pt.seriesIndex ?? -1];
+                    const raw = Array.isArray(pt.value) ? pt.value[pt.value.length - 1] : pt.value;
+                    const num = typeof raw === 'string' ? Number(raw) : (raw as number);
+                    const txt = Number.isFinite(num)
+                        ? formatValueByUnit(num, su?.unit ?? 'generic', 'tooltip', su?.rawName)
+                        : esc(raw);
+                    return `${pt.marker ?? ''} ${esc(pt.seriesName)}&nbsp;&nbsp;<b>${esc(txt)}</b>`;
+                });
+                return [title, ...lines].filter(Boolean).join('<br/>');
+            },
+        };
+    }
     const dom = dominantUnit(series);
     const hint = dominantRawName(series, dom);
     return {
@@ -338,6 +367,34 @@ function tooltipWithFormatter(series: ReadonlyArray<SeriesWithUnit>): Record<str
             if (!Number.isFinite(v)) return String(value);
             return formatValueByUnit(v as number, dom, 'tooltip', hint);
         },
+    };
+}
+
+/**
+ * Mixed-unit scale fix: percentages and magnitudes cannot share one linear
+ * axis — a billions series flattens every % series into an invisible line at
+ * y≈0 (user screenshot, 2026-07-29). When both groups are present, split
+ * into TWO y-axes: magnitudes on the left, percents on the right, and give
+ * every series its yAxisIndex. Single-unit charts are returned unchanged.
+ */
+function splitAxesForMixedUnits(
+    series: ReadonlyArray<SeriesWithUnit>,
+    baseAxis: Record<string, unknown>,
+): { yAxis: Record<string, unknown> | Array<Record<string, unknown>>; axisIndexFor: (i: number) => number } {
+    const pctIdx = series.map((s, i) => (s.unit === 'percentage' ? i : -1)).filter(i => i >= 0);
+    const hasPct = pctIdx.length > 0;
+    const hasOther = pctIdx.length < series.length;
+    if (!hasPct || !hasOther) {
+        return { yAxis: baseAxis, axisIndexFor: () => 0 };
+    }
+    const others = series.filter(s => s.unit !== 'percentage');
+    const pcts = series.filter(s => s.unit === 'percentage');
+    return {
+        yAxis: [
+            { type: 'value', axisLabel: axisFormatterForSeries(others) },
+            { type: 'value', axisLabel: axisFormatterForSeries(pcts), splitLine: { show: false } },
+        ],
+        axisIndexFor: (i: number) => (series[i]?.unit === 'percentage' ? 1 : 0),
     };
 }
 
@@ -386,11 +443,18 @@ function buildEChartsOptionInner(
                 tooltip: tooltipWithFormatter(d.series),
                 legend: d.series.length > 1 ? LEGEND_STYLE : undefined,
                 grid: { ...GRID_STYLE, left: '20%' },
-                xAxis: { type: 'value', axisLabel: axisFormatterForSeries(d.series) },
+                xAxis: (() => {
+                    // Same mixed-unit split as the vertical charts, on the X
+                    // axis - a % series beside a count series must not share
+                    // one linear scale.
+                    const split = splitAxesForMixedUnits(d.series, { type: 'value', axisLabel: axisFormatterForSeries(d.series) });
+                    return split.yAxis;
+                })(),
                 yAxis: { type: 'category', data: d.categories },
                 series: d.series.map((s, i) => ({
                     name: s.name,
                     type: 'bar' as const,
+                    xAxisIndex: splitAxesForMixedUnits(d.series, {}).axisIndexFor(i),
                     data: s.data,
                     itemStyle: { color: PALETTE[i % PALETTE.length] },
                 })),
@@ -407,11 +471,12 @@ function buildEChartsOptionInner(
                 legend: d.series.length > 1 ? LEGEND_STYLE : undefined,
                 grid: GRID_STYLE,
                 xAxis: { type: 'category', data: d.categories },
-                yAxis: { type: 'value', axisLabel: axisFormatterForSeries(d.series) },
+                yAxis: splitAxesForMixedUnits(d.series, { type: 'value', axisLabel: axisFormatterForSeries(d.series) }).yAxis,
                 series: d.series.map((s, i) => ({
                     name: s.name,
                     type: 'bar' as const,
                     data: s.data,
+                    yAxisIndex: splitAxesForMixedUnits(d.series, {}).axisIndexFor(i),
                     itemStyle: { color: PALETTE[i % PALETTE.length] },
                 })),
             };
@@ -427,11 +492,12 @@ function buildEChartsOptionInner(
                 legend: d.series.length > 1 ? LEGEND_STYLE : undefined,
                 grid: GRID_STYLE,
                 xAxis: { type: 'category', data: d.categories },
-                yAxis: { type: 'value', axisLabel: axisFormatterForSeries(d.series) },
+                yAxis: splitAxesForMixedUnits(d.series, { type: 'value', axisLabel: axisFormatterForSeries(d.series) }).yAxis,
                 series: d.series.map((s, i) => ({
                     name: s.name,
                     type: 'line' as const,
                     data: s.data,
+                    yAxisIndex: splitAxesForMixedUnits(d.series, {}).axisIndexFor(i),
                     smooth: true,
                     itemStyle: { color: PALETTE[i % PALETTE.length] },
                 })),
@@ -447,12 +513,13 @@ function buildEChartsOptionInner(
                 legend: d.series.length > 1 ? LEGEND_STYLE : undefined,
                 grid: GRID_STYLE,
                 xAxis: { type: 'category', data: d.categories },
-                yAxis: { type: 'value', axisLabel: axisFormatterForSeries(d.series) },
+                yAxis: splitAxesForMixedUnits(d.series, { type: 'value', axisLabel: axisFormatterForSeries(d.series) }).yAxis,
                 series: d.series.map((s, i) => ({
                     name: s.name,
                     type: 'line' as const,
                     data: s.data,
                     smooth: true,
+                    yAxisIndex: splitAxesForMixedUnits(d.series, {}).axisIndexFor(i),
                     areaStyle: { opacity: 0.3 },
                     itemStyle: { color: PALETTE[i % PALETTE.length] },
                 })),

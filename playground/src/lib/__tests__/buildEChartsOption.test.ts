@@ -21,11 +21,16 @@ describe("buildEChartsOption — mixed-unit axis", () => {
             [["2024", 97.5, 2_523_750], ["2025", 98.2, 2_399_415], ["2026", 99.0, 1_138_707]],
         );
         expect(option).not.toBeNull();
-        const fmt = yAxisFormatter(option);
-        // The count value must NOT be labelled as a percentage.
-        expect(fmt(2_500_000)).toBe("2.5MM");
-        expect(fmt(2_500_000)).not.toContain("%");
-        expect(fmt(97.5)).not.toContain("%");
+        // Superseded contract (2026-07-29): mixed %-vs-magnitude no longer
+        // shares one unit-less axis - the % series get their OWN axis so the
+        // magnitude series cannot flatten them. Axis 0 = magnitudes (no %),
+        // axis 1 = percents.
+        const axes = (option as { yAxis?: Array<{ axisLabel?: { formatter?: (v: number) => string } }> }).yAxis;
+        expect(Array.isArray(axes)).toBe(true);
+        const magFmt = axes![0]?.axisLabel?.formatter;
+        const pctFmt = axes![1]?.axisLabel?.formatter;
+        expect(magFmt!(2_500_000)).not.toContain("%");
+        expect(pctFmt!(97.5)).toContain("%");
     });
 
     it("keeps the unit suffix when all series share one unit", () => {
@@ -37,5 +42,39 @@ describe("buildEChartsOption — mixed-unit axis", () => {
         );
         const fmt = yAxisFormatter(option);
         expect(fmt(97.5)).toBe("97.5%");
+    });
+});
+
+describe("mixed-unit charts (2026-07-29 regression)", () => {
+    // A % metric beside a billions metric shared one axis and one tooltip
+    // unit: Net Sales rendered as "1902440231.0%" and every % series
+    // flattened invisible. Percent series now live on a second axis and
+    // every tooltip line wears its own unit.
+    const columns = ["year", "order_fill_rate", "net_sales_usd"];
+    const rows = [["2025", 98.25, 1810000000], ["2026", 99.06, 1902440231]];
+
+    it("puts percent series on their own axis", () => {
+        const opt = buildEChartsOption("column", columns, rows) as Record<string, never>;
+        expect(Array.isArray(opt.yAxis)).toBe(true);
+        expect((opt.yAxis as unknown[]).length).toBe(2);
+        const series = opt.series as Array<{ name: string; yAxisIndex?: number }>;
+        const pct = series.find(s => /fill rate/i.test(s.name));
+        const usd = series.find(s => /net sales/i.test(s.name));
+        expect(pct?.yAxisIndex).toBe(1);
+        expect(usd?.yAxisIndex ?? 0).toBe(0);
+    });
+
+    it("formats each tooltip line with its OWN unit — never % on a currency", () => {
+        const opt = buildEChartsOption("column", columns, rows) as Record<string, never>;
+        const fmt = (opt.tooltip as { formatter?: (p: unknown) => string }).formatter;
+        expect(typeof fmt).toBe("function");
+        const html = fmt!([
+            { seriesIndex: 0, seriesName: "Order Fill Rate", marker: "", axisValueLabel: "2026", value: 99.06 },
+            { seriesIndex: 1, seriesName: "Net Sales Usd", marker: "", value: 1902440231 },
+        ]);
+        expect(html).toMatch(/99\.1\s?%|99\.06\s?%|99\.1%/);
+        // the currency line must not carry a percent suffix
+        const salesLine = html.split("<br/>").find(l => /Net Sales/i.test(l)) || "";
+        expect(salesLine).not.toMatch(/%/);
     });
 });

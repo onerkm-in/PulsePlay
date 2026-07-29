@@ -8,6 +8,37 @@
 
 Ordered by impact × cost. Each item is independently shippable.
 
+- [ ] **VIZ-DECLARED — rendering driven by DECLARED semantics, not column-name
+  heuristics (user direction 2026-07-29)** — the mixed-unit chart bugs (percent
+  suffix on Net Sales; billions flattening % series) came from the client
+  re-inferring semantics the platform already declares: UC metric views carry
+  measures/units, the space config carries direction-of-goodness and notation.
+  Direction: renderer consumes a declared-semantics contract (unit, scale,
+  higher-is-better) resolved from UC metadata + profile config; agent HINT as
+  fallback where nothing is declared; column-name heuristics last. This is the
+  plug-and-play posture: new use case = new declarations, not new code.
+
+- [ ] **UC-COMMENTS-AUDIT — inconclusive, redo** — the information_schema query
+  for stale/missing table+column comments on main.supply_chain.* errored
+  mid-session (state ERR, cause not chased). After the CPG re-skin the
+  comments may still carry industrial vocabulary. Audit and update via COMMENT
+  ON; the 4 Genie metric views (mtr_pp_syn_ltm_*) exist and are the reference.
+
+- [ ] **CANVAS-ON-DASHBOARD — pinned tiles invisible on the Lakeview Dashboard**
+  — "Pin to canvas" writes native-canvas tiles (localStorage) rendered only by
+  the native vendor board; with databricks-aibi active the Dashboard shows no
+  pins (user report). Fix: render the pinned board below the Lakeview render;
+  also reconcile the TWO pin channels (canvas-tiles vs decision-canvas
+  sections/MyCanvasRegion).
+
+- [ ] **EXEC-SUMMARY-TONE — red pill on a good move + stale MN (user screenshot)**
+  — a Net Sales increase pill rendered red and the exec summary said "MN";
+  investigation was interrupted (fresh briefing generate got cut). Reproduce
+  with a fresh briefing, inspect the pill's tone classes (pillColorClass +
+  metric rules corpus — likely the un-unified guidance corpora), fix rules or
+  corpus, and confirm MM.
+
+
 - [ ] **AGENT-OBO — on-behalf-of-user identity (THE enterprise blocker)** — the
   agentic investigator runs its steps under the PROFILE's service credential,
   not the calling user's. On a workspace where Unity Catalog grants differ per
