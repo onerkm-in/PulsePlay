@@ -361,3 +361,19 @@ button.dcc-sevbar-row.is-picked {
 }
 .dc-cockpit--narrow .dcc-navbadge { position: absolute; top: 2px; right: 4px; margin: 0; }
 .dc-cockpit--narrow .dcc-navlink { position: relative; }
+
+/* "Checked" chip explainer — click-to-open (a hover title alone left the
+   governance guarantee a mystery). */
+.dcc-govwrap { position: relative; display: inline-flex; }
+button.dcc-chip--gov { border: 0; cursor: pointer; font: inherit; font-size: 11.5px; font-weight: 700; font-family: var(--font-heading); }
+.dcc-govnote {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 60;
+  width: 300px; padding: 12px 14px;
+  background: var(--pp-surface-raised, #fff);
+  border: 1px solid var(--color-divider); border-radius: var(--radius-lg, 7px);
+  box-shadow: var(--shadow-md, 0 8px 24px rgba(15,23,42,0.14));
+  font-size: 12.5px; line-height: 1.5; text-align: left;
+}
+.dcc-govnote b { font-family: var(--font-heading); }
+.dcc-govnote ul { margin: 6px 0 0; padding-left: 16px; }
+.dcc-govnote li { margin-top: 4px; }

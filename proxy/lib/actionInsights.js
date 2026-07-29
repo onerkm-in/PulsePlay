@@ -26,7 +26,7 @@ const hitlGate = require('./hitlGate');
 const notifier = require('./decisionNotifier');
 const store = require('./decisionPromptStore');
 
-const { PLANNER, MANAGER, resolvePersona, caps, allowedActionsFor } = personaGate;
+const { PLANNER, MANAGER, resolvePersona, caps, allowedActionsFor, describePersonaSwitch } = personaGate;
 
 /** GET handler: proactive prompt stack filtered to the resolved persona. */
 function makeListHandler(deps) {
@@ -55,6 +55,7 @@ function makeListHandler(deps) {
                 persona,
                 personaSource: source,
                 capabilities: [...cap],
+                personaSwitch: describePersonaSwitch(req),
                 prompts: [],
                 notice: `Decisions run on the governed Databricks decision store. The active connector "${resolved.name}" has no Databricks warehouse, so there are no decision prompts to show here. Switch to a Databricks/Genie connector to use Decisions.`,
             });
@@ -66,7 +67,7 @@ function makeListHandler(deps) {
             for (const row of prompts) row.allowed_actions = allowedActionsFor(row, persona);
             auditLog(req, { action: 'action-insights.list', status: 200,
                 detail: `persona=${persona} source=${source} n=${prompts.length}` });
-            return res.json({ ok: true, persona, personaSource: source, capabilities: [...cap], prompts });
+            return res.json({ ok: true, persona, personaSource: source, capabilities: [...cap], personaSwitch: describePersonaSwitch(req), prompts });
         } catch (err) {
             // Fail-safe: caller (UI) renders no Action Insights, existing screens unaffected.
             auditLog(req, { action: 'action-insights.list', status: 500,

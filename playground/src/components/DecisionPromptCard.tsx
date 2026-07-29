@@ -94,7 +94,16 @@ function fmtImpact(value: number, unit: string): string {
     // The API can deliver impact values as strings — coerce before math.
     const n = Number(value);
     if (!Number.isFinite(n)) return String(value) + (unit ? " " + unit : "");
-    if (unit === "USD") return "$" + Math.round(n).toLocaleString("en-US");
+    // Project notation: Roman scale (M=thousand, MM=million, B=billion), and
+    // the mantissa never carries a thousands separator — "$10,624" violated
+    // the convention this card sits next to.
+    if (unit === "USD") {
+        const a = Math.abs(n);
+        if (a >= 1e9) return "$" + (n / 1e9).toFixed(2) + " B";
+        if (a >= 1e6) return "$" + (n / 1e6).toFixed(2) + " MM";
+        if (a >= 1e3) return "$" + (n / 1e3).toFixed(2) + " M";
+        return "$" + Math.round(n);
+    }
     // % and pp both render with the % symbol ("6.5%", "1%") and keep a decimal
     // when small — rounding 6.5% up to "7 %" misstates the measured figure.
     // Percentage-metric changes use "%", never a "pp" suffix (product preference).
@@ -102,7 +111,13 @@ function fmtImpact(value: number, unit: string): string {
         const v = Math.abs(n) < 10 ? String(parseFloat(n.toFixed(1))) : String(Math.round(n));
         return v + "%";
     }
-    return Math.round(n).toLocaleString("en-US") + " " + unit;
+    // Same Roman promotion for plain counts — "90,166 units" broke the
+    // no-thousands-separator rule (the Lakeview counters already promote).
+    const a = Math.abs(n);
+    if (a >= 1e9) return (n / 1e9).toFixed(2) + " B " + unit;
+    if (a >= 1e6) return (n / 1e6).toFixed(2) + " MM " + unit;
+    if (a >= 1e3) return (n / 1e3).toFixed(2) + " M " + unit;
+    return Math.round(n) + " " + unit;
 }
 
 /** Pull the "ACTION QUESTION:" line out of the deterministic narrative. */
@@ -217,7 +232,15 @@ export function DecisionPromptCard({
                             <span className="dpc__bar-fill" style={{ width: `${impactPct}%` }} />
                         </div>
                     </div>
-                    <div className="dpc__question">{actionQuestion(prompt)}</div>
+                    {/* The ask is only honest while the viewer can still act on
+                        it. Once the card is sent for approval (or closed), the
+                        question read as a contradiction next to its own status
+                        line ("Do you want me to...?" / "Sent for approval").  */}
+                    {!terminal && !awaitingApproval
+                        ? <div className="dpc__question">{actionQuestion(prompt)}</div>
+                        : <div className="dpc__question dpc__question--settled">
+                            {awaitingApproval ? "Proposed - a decision is with the approver." : "This one is settled."}
+                        </div>}
                 </div>
 
                 {!terminal && (

@@ -82,6 +82,32 @@ function resolvePersona(req) {
 function caps(persona) { return CAPABILITIES[persona] || CAPABILITIES[PLANNER]; }
 
 /**
+ * What the UI may render as a persona switch. The client must NEVER hard-code
+ * persona labels (plug-and-play: another org's taxonomy differs, and a real
+ * IdP login makes switching meaningless — the system already knows your role).
+ *
+ *  - IdP role present  → not switchable; identity is a fact, no switch shown.
+ *  - demo mode enabled → switchable across the personas THIS engine declares.
+ *  - otherwise         → not switchable (hints are ignored server-side anyway).
+ */
+function describePersonaSwitch(req) {
+    const roles = (req.user && Array.isArray(req.user.roles)) ? req.user.roles : [];
+    const hasIdp = roles.length > 0;
+    const demoOn = process.env.AI_ALLOW_DEMO_PERSONA === 'true';
+    return {
+        switchable: !hasIdp && demoOn,
+        // The engine's own taxonomy — the single server-side source of truth.
+        // Each option carries its own plain-language job description so the
+        // UI can EXPLAIN the role rather than assume the reader knows the
+        // proposer-vs-approver governance story.
+        options: [
+            { name: PLANNER, blurb: 'Watches the operation. Can propose fixes, but big actions need an approval.' },
+            { name: MANAGER, blurb: 'The approver. Says yes or no to what planners propose - nothing big runs without this.' },
+        ],
+    };
+}
+
+/**
  * The actions this persona may take on a prompt in its current status. Terminal
  * statuses offer view only; a fresh prompt offers its own governed trigger plus
  * snooze/false-positive/reject; a pending-approval prompt offers approve/reject.
@@ -107,5 +133,5 @@ function allowedActionsFor(promptRow, persona) {
 
 module.exports = {
     PLANNER, MANAGER, AGENT, CAPABILITIES, ACTIONS, MVP_ACTION_LEVEL_CEILING, ACTIONABLE_FROM_NEW,
-    resolvePersona, caps, allowedActionsFor,
+    resolvePersona, caps, allowedActionsFor, describePersonaSwitch,
 };

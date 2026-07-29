@@ -35,6 +35,12 @@ interface ApiResponse {
      *  "No decisions" empty state so the surface degrades gracefully. */
     notice?: string;
     unavailable?: boolean;
+    /** Server-declared persona switch: whether switching is possible at all
+     *  (demo mode, no IdP role) and the personas THIS engine declares. The UI
+     *  never hard-codes persona labels - plug-and-play means another org's
+     *  taxonomy renders without a client change, and under a real login the
+     *  switch disappears (the system already knows the role). */
+    personaSwitch?: { switchable: boolean; options: Array<string | { name: string; blurb?: string }> };
 }
 
 interface CachedPrompts {
@@ -120,7 +126,7 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, onSta
      *  switch is a hint the server may ignore (SEC-01: IdP roles win, and demo
      *  switching needs an explicit opt-in) — any switcher UI must reflect this
      *  resolution, not the request, or it claims authority the caller lacks. */
-    onResolvedPersona?: (info: { persona: string; source: string }) => void;
+    onResolvedPersona?: (info: { persona: string; source: string; personaSwitch?: { switchable: boolean; options: Array<string | { name: string; blurb?: string }> } }) => void;
 }) {
     const [data, setData] = useState<ApiResponse | null>(null);
     const [fetchedAt, setFetchedAt] = useState<number | null>(null);
@@ -162,7 +168,7 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, onSta
             setFetchedAt(now);
             writePromptCache({ key: `${base}|${assistantProfile || ""}|${persona}`, fetchedAt: now, body });
             onDataRef.current?.(body.prompts || []);
-            onResolvedPersonaRef.current?.({ persona: body.persona, source: body.personaSource });
+            onResolvedPersonaRef.current?.({ persona: body.persona, source: body.personaSource, personaSwitch: body.personaSwitch });
             onStatusRef.current?.("ready");
         } catch (e) {
             setError(String((e as Error).message || e));
@@ -200,7 +206,7 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, onSta
             setData(hit.body);
             setFetchedAt(hit.fetchedAt);
             onDataRef.current?.(hit.body.prompts || []);
-            onResolvedPersonaRef.current?.({ persona: hit.body.persona, source: hit.body.personaSource });
+            onResolvedPersonaRef.current?.({ persona: hit.body.persona, source: hit.body.personaSource, personaSwitch: hit.body.personaSwitch });
             onStatusRef.current?.("ready");
             return;
         }
@@ -292,17 +298,24 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, onSta
                       * header said "Viewing as Supply Chain Planner", and (b) when demo-persona
                       * mode is off the server IGNORES the requested persona (SEC-01), so showing
                       * the request would claim authority the caller does not have. */}
-                    <div className="seg" role="group" aria-label="Demo persona">
-                        {[PLANNER, MANAGER].map((p) => (
+                    {data?.personaSwitch?.switchable && (
+                    <div className="seg" role="group" aria-label="View as (demo)">
+                        {(data.personaSwitch.options || []).map((o) => {
+                            const p = typeof o === "string" ? o : o.name;
+                            const blurb = typeof o === "string" ? undefined : o.blurb;
+                            return (
                             <button
                                 key={p}
                                 type="button"
                                 className="seg-opt"
-                                aria-pressed={(data?.persona || demoPersona || PLANNER) === p ? "true" : "false"}
+                                aria-pressed={(data?.persona || demoPersona) === p ? "true" : "false"}
                                 onClick={() => setPersona(p)}
+                                title={blurb}
                             >{p.replace("Supply Chain ", "")}</button>
-                        ))}
+                            );
+                        })}
                     </div>
+                    )}
                 </div>
             )}
 

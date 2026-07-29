@@ -16,7 +16,9 @@
   /* Severity is carried by .dpc__strip along the top, not a coloured left edge. */
   border-radius: var(--radius-lg, 7px);
   box-shadow: var(--shadow-sm, 0 1px 2px rgba(43, 43, 45, 0.14));
-  overflow: hidden;
+  /* No overflow clipping: it cut off the Save dropdown at the card edge. The
+     rounded-corner job it was doing for the severity strip moved onto the
+     strip's own top radii below. */
 }
 /* 0.7 dropped 13px body text to ~3.1:1 - decoration may recede, text may not. */
 .dpc--terminal { opacity: 0.85; }
@@ -46,6 +48,7 @@
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   margin: -16px -18px 4px;          /* bleed to the card edges over .dpc__body padding */
   padding: 9px 18px;
+  border-radius: calc(var(--radius-lg, 7px) - 1px) calc(var(--radius-lg, 7px) - 1px) 0 0;
   background: color-mix(in srgb, var(--sev-color, var(--color-accent)) 11%, transparent);
   border-bottom: 1px solid color-mix(in srgb, var(--sev-color, var(--color-accent)) 26%, transparent);
 }
@@ -184,3 +187,5 @@
 @media (prefers-reduced-motion: reduce) {
   .dpc-skel { animation: none; opacity: 0.75; }
 }
+
+.dpc__question--settled { color: var(--pp-text-muted, #5d5d60); font-weight: 500; }

@@ -201,6 +201,8 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
     // tell the user there is nothing to do while the fetch is still running.
     const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
     const scanning = status === "loading";
+    // "Checked" chip explainer (click-to-open; hover-only left it a mystery).
+    const [showGovNote, setShowGovNote] = useState(false);
     // Persona is state, not a bare read: the cockpit had no way to change it at
     // all (the segregated surface has a Planner/Manager switch), so a manager
     // could not see their own approval queue. Switching remounts the decision
@@ -211,7 +213,7 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
     // ignores it when demo switching is off or an IdP role is bound (SEC-01).
     // The switcher's pressed state and the avatar follow THIS, never the local
     // request; anything else shows authority the caller doesn't have.
-    const [resolved, setResolved] = useState<{ persona: string; source: string } | null>(null);
+    const [resolved, setResolved] = useState<{ persona: string; source: string; personaSwitch?: { switchable: boolean; options: Array<string | { name: string; blurb?: string }> } } | null>(null);
     const choosePersona = (p: string) => {
         try { window.localStorage.setItem("pulseplay:ai-demo-persona", p); } catch { /* private mode */ }
         setPersona(p);
@@ -312,10 +314,17 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
                         missing outright. Server-side authorization is unchanged —
                         this only sends a hint header, and is ignored once a real
                         IdP role is bound. */}
-                    {!narrow && (
+                    {/* Server-declared, never hard-coded: options come from the
+                        engine's own taxonomy, and the whole block disappears when
+                        switching is impossible (real IdP login, or demo mode off) -
+                        under a real login the system already knows your role. */}
+                    {!narrow && resolved?.personaSwitch?.switchable && (
                         <div className="dcc-personapick">
-                            <div className="dcc-personapick-label">I'm working as</div>
-                            {["Supply Chain Planner", "Supply Chain Manager"].map((p) => (
+                            <div className="dcc-personapick-label">View as (demo)</div>
+                            {(resolved.personaSwitch.options || []).map((o) => {
+                                const p = typeof o === "string" ? o : o.name;
+                                const blurb = typeof o === "string" ? undefined : o.blurb;
+                                return (
                                 <button
                                     key={p}
                                     type="button"
@@ -324,9 +333,20 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
                                     className={`dcc-personabtn${shownPersona === p ? " is-on" : ""}`}
                                     aria-pressed={shownPersona === p}
                                     onClick={() => choosePersona(p)}
+                                    title={blurb}
                                 >{p.replace("Supply Chain ", "")}</button>
-                            ))}
-                            {personaIgnored && (
+                                );
+                            })}
+                            {/* The ACTIVE role's job description, visible (not
+                                hover-only) - answers "who am I acting as, and
+                                what can that role do?" in one line. */}
+                            {(() => {
+                                const active = (resolved.personaSwitch.options || []).find(
+                                    (o) => (typeof o === "string" ? o : o.name) === shownPersona);
+                                const blurb = active && typeof active !== "string" ? active.blurb : null;
+                                return blurb ? <div className="dcc-personapick-note" role="note">{blurb}</div> : null;
+                            })()}
+                            {personaIgnored && resolved?.personaSwitch?.switchable && (
                                 <div className="dcc-personapick-note" role="status">
                                     Your role is set by the server, so this switch is off here.
                                 </div>
@@ -354,7 +374,26 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
                         </p>
                     </div>
                     <div className="dcc-topbar-right">
-                        <span className="dcc-chip dcc-chip--gov" title="Every number here is measured from your data and every action checks your permissions first."><ShieldCheck size={13} strokeWidth={1.8} aria-hidden /> Checked</span>
+                        {/* Click-to-explain: a hover title alone left the chip
+                            meaning a mystery (user question, 2026-07-29). */}
+                        <span className="dcc-govwrap">
+                            <button
+                                type="button"
+                                className="dcc-chip dcc-chip--gov"
+                                aria-expanded={showGovNote}
+                                onClick={() => setShowGovNote(v => !v)}
+                            ><ShieldCheck size={13} strokeWidth={1.8} aria-hidden /> Checked</button>
+                            {showGovNote && (
+                                <div className="dcc-govnote" role="note">
+                                    <b>What "Checked" means</b>
+                                    <ul>
+                                        <li>Every number is <b>measured from your data</b> — never invented by AI.</li>
+                                        <li>Every action is <b>permission-checked on the server</b> before it runs.</li>
+                                        <li>Big actions need a <b>person's approval</b> before anything happens.</li>
+                                    </ul>
+                                </div>
+                            )}
+                        </span>
                         <button type="button" className="dcc-iconbtn" aria-label="Notifications"><Bell size={16} strokeWidth={1.8} aria-hidden /></button>
                         <div className="dcc-persona">
                             <span className="dcc-persona-avatar">{initialsOf(shownPersona)}</span>
