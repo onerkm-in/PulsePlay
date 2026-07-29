@@ -1,0 +1,77 @@
+{
+  "run_id": "run-20260724T033052Z-423e5b81",
+  "generated_at": "2026-07-24T03:35:56.476686+00:00",
+  "package_version": "0.1.0",
+  "seed": 42,
+  "scale_factor": 0.01,
+  "scale_label": "1% fact scale (POC)",
+  "target": {
+    "catalog": "workspace",
+    "schema": "databrickspractice",
+    "warehouse_name": null
+  },
+  "contract_package_hash": "7813762c8df9b9e1907933c4b82ee2d501f370231b8ce69f8272f89ebf359674",
+  "generator_hash": "dcbb7bc5194a92c5896d2e268d6d9a2e1bba6376a11e6a5b46826d6863cb3e64",
+  "objects": [
+    {
+      "dest_fqn": "workspace.databrickspractice.tbl_pp_syn_dm_countries",
+      "source_contract": "uc_dev_snt_supplychain_01.snp_indrct_comp_gold_ai.vw_ltm_sc_dm_countries",
+      "role": "dimension",
+      "rows": 20,
+      "content_hash": "1ad4ac0b1bc18ca2c20b40768a8c2337389195daf66aa2ffc665d62f7ff2aaa4",
+      "created": true
+    },
+    {
+      "dest_fqn": "workspace.databrickspractice.tbl_pp_syn_dm_plants",
+      "source_contract": "uc_dev_snt_supplychain_01.snp_indrct_comp_gold_ai.vw_ltm_sc_dm_plants",
+      "role": "dimension",
+      "rows": 602,
+      "content_hash": "435e0447eac5d512bae7c9bb2891fbb08f1e6a0a5c43a41aab05ab3b2f78efac",
+      "created": true
+    },
+    {
+      "dest_fqn": "workspace.databrickspractice.tbl_pp_syn_dm_sales_channel",
+      "source_contract": "uc_dev_snt_supplychain_01.snp_indrct_comp_gold_ai.vw_ltm_sc_dm_sales_channel",
+      "role": "dimension",
+      "rows": 11,
+      "content_hash": "c7a141b459439a72e46e61c20730ee51c57a0ddff1c0efaa7763a852d914462a",
+      "created": true
+    },
+    {
+      "dest_fqn": "workspace.databrickspractice.tbl_pp_syn_fct_ofr",
+      "source_contract": "uc_dev_snt_supplychain_01.snp_indrct_comp_gold_ai.mtr_vw_ltm_sc_fct_ofr",
+      "role": "fact",
+      "rows": 182921,
+      "content_hash": "077ef38aee06eff9fe900dfe80f555403d3b804c86345027252fc1bfac32d462",
+      "created": true
+    },
+    {
+      "dest_fqn": "workspace.databrickspractice.tbl_pp_syn_fct_operations",
+      "source_contract": "uc_dev_snt_supplychain_01.snp_indrct_comp_gold_ai.mtr_vw_ltm_sc_fct_operations",
+      "role": "fact",
+      "rows": 846,
+      "content_hash": "867b8536330ef765917282f771c2fd64855a773e96424ec68a014e5f41de7a23",
+      "created": true
+    },
+    {
+      "dest_fqn": "workspace.databrickspractice.tbl_pp_syn_fct_performance",
+      "source_contract": "uc_dev_snt_supplychain_01.snp_indrct_comp_gold_ai.mtr_vw_ltm_sc_fct_performance",
+      "role": "fact",
+      "rows": 177,
+      "content_hash": "ad0a4c3535cb6c7df1cd50a8759acdd6c774d79c1ff1c2032837856efd9e32b0",
+      "created": true
+    }
+  ],
+  "metric_views_blocked": {
+    "mtr_pp_syn_ltm_sc_fct_ofr": "measure formulas redacted in contract; not reproduced",
+    "mtr_pp_syn_ltm_sc_fct_operations": "measure formulas redacted in contract; not reproduced",
+    "mtr_pp_syn_ltm_sc_fct_performance": "measure formulas redacted in contract; not reproduced"
+  },
+  "validation": {
+    "overall_pass": true,
+    "validated_run_id": "run-20260724T034057Z-c4e67a8a",
+    "tables_pass": true,
+    "relationships_pass": true,
+    "queries_nonempty": true
+  }
+}

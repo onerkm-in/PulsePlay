@@ -5,6 +5,33 @@
 
 ---
 
+## 2026-07-29 (latest+33) — the "dead shell" was one starved fetch; cockpit is now the default
+
+Commits `9f22837` (auto-load + default mode) · `71b6d95` (plain language, sidebar, loading honesty) · `fc57c72` (severity strip). Playground **1,984/1,984** across 154 files; proxy **1,528/1,528** across 85 suites; tsc + production build clean.
+
+**Root cause of "it looks like a dead shell": the Decisions surface required a click before it fetched anything.** That gate starved far more than the list — the cockpit's KPI strip, severity bars, donut and impact totals all derive from the SAME fetch, so an unclicked page rendered `0 open / n/a impact` as though the queue were clear. The screen looked dead because it had no data, not because it lacked design. One fix lit the whole plate: **$10.6K at risk, 4 awaiting decision, 4 needing approval, 7 cards**.
+
+**Auto-load is bounded, and costs what the button cost.** The prompt store is a `SELECT` over a precomputed Delta table — no model call, no token spend. Once per `(base, profile, persona)` per session, never on a timer, skipped outright when the session cache is warm. The no-spend rule keeps its teeth where it earns them: the LLM briefing and Ask Pulse remain intent-only. **This is a deliberate, user-directed narrowing of `feedback_no_spend_without_intent` — it did not go away.**
+
+**Cold warehouse measured at 9.3s.** Blank space for ten seconds reads as broken, so skeleton cards stand in at the real card's dimensions and reserve its height, so arriving prompts don't shift the page.
+
+**Default served mode raised `segregated` → `combined`.** `FALLBACK_MODE` stays `segregated` **on purpose** — it is the kill-switch target, and an escape hatch that lands somewhere newer than what it is rescuing you from is worthless. `combined` over plain `cockpit` because cockpit has NO cross-screen nav and only an author can change modes: end users would be stranded with no route to Dashboard or Ask Pulse.
+
+**The cockpit lied while loading.** It derived its cards from an empty prompt list and said "You're all caught up" mid-fetch. An empty list and an unfetched list are indistinguishable through `onData` alone, so the panel now reports status and derived cards show `—` / "Checking your supply chain…" until data lands.
+
+**Sidebar: the empty column was a layout bug, not a spacing choice.** `.dcc-side` stretched to the DOCUMENT height, so `margin-top:auto` pushed the status card to the bottom of a long scrolling page. Pinned to the viewport (`sticky`, `100vh`). The reclaimed space carries a **persona switcher, which the cockpit was missing entirely** — a manager had no way to reach their own approval queue.
+
+**Plain-language pass, provenance preserved.** "HITL-gated" → "a person must say yes"; "Tier-first ranking" → "most urgent first"; "measured · deterministic" → "counted from your data · not AI" (same guarantee, actionable wording). "Unified Canvas" was the cockpit you are already on — renamed "Overview".
+
+**Tripwires:**
+- Nav badges are rendered **only** for Decisions, whose count we measured on this page. Badging the other surfaces would be decoration, not data.
+- Auto-load keys off a `Set` in a ref. Adding a dep that re-creates it re-fires the warehouse fetch.
+- `Page.captureScreenshot` times out while the 9s fetch is in flight — wait before screenshotting.
+
+**Open, explicitly not done (see AGENDA):** sparklines (the prompt payload carries `month_key` only, no series — needs one batched query on `fact_supply_chain_kpi_monthly`; I would not fabricate a trend), and the agentic executor on cards.
+
+---
+
 ## 2026-07-29 (latest+32) — D5 Phase 1 started; Dashboard charts load on demand; responsive pass found no defects
 
 Commits `244dfba` (doc hygiene + D12) · `f31139a` (D5 Phase 1) · `905af28` / `71fdebd` (trackers) · `c50b6a2` (chart gating) · `9616cda` (responsive evidence). Playground **1,980/1,980** across 153 files, tsc + production build clean.

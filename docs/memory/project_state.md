@@ -5,6 +5,39 @@ type: project
 originSessionId: current
 ---
 
+**Current state - 2026-07-29 (cockpit is the default; Decisions auto-loads):**
+Branch `design/nav-consistency` at `fc57c72`. **All green:** playground
+**1984/1984** (154 files), proxy **1528/1528** (85 suites), tsc + production
+build clean.
+
+The "dead shell" complaint had **one** cause: the Decisions surface required a
+click before it fetched, and the cockpit's KPI strip, severity bars, donut and
+impact totals all derive from that same fetch — so an unclicked page said
+`0 open / n/a impact` as though nothing needed attention. Auto-loading it lit
+the whole plate ($10.6K at risk, 4 awaiting decision, 7 cards).
+
+**The no-spend rule was narrowed, not dropped** (user-directed): the decision
+store is a `SELECT` over a precomputed Delta table — 0 LLM tokens — so it
+auto-loads, bounded to once per `(base, profile, persona)` per session and
+skipped when the session cache is warm. The LLM briefing and Ask Pulse are
+still intent-only. Cold warehouse measured at **9.3s**, covered by skeleton
+cards sized to the real card.
+
+**Served experience mode is now `combined`** (cockpit plate + top-tab nav).
+`FALLBACK_MODE` deliberately stays `segregated` — it is the kill-switch target.
+`combined` rather than plain `cockpit` because cockpit has no cross-screen nav
+and only an author can change modes.
+
+Cockpit also gained: a persona switcher it **never had** (a manager could not
+reach their own approval queue), a viewport-pinned sidebar (it had been
+stretching to document height, which is what created the empty column), a live
+count badge on Decisions only, plain-language labels throughout, and severity
+as a header strip rather than a coloured left edge.
+
+**Open and named:** sparklines are blocked on data — a prompt row has
+`month_key` only, no series (AGENDA `DEC-SPARK`); the agentic executor is
+blocked on the spend guardrail (AGENDA `DEC-AGENT`).
+
 **Current state - 2026-07-28 (Databricks-native dashboard shade, retro-logged):**
 Branch `design/nav-consistency` = `main` at `5ccfdf2`. **All green:** playground
 **1943/1943** (151 files), proxy **1528/1528** (85 suites), tsc + production

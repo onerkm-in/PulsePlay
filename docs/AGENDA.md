@@ -8,6 +8,34 @@
 
 Ordered by impact × cost. Each item is independently shippable.
 
+- [ ] **DEC-SPARK — decision cards have no trend to draw** — the "add sparklines"
+  ask is blocked on data, not rendering. A prompt row carries `month_key` (a
+  single point), `kpi`, `category`, `region` — no series. Drawing a sparkline
+  today would mean inventing one, which the accuracy contract forbids. The
+  honest fix is **one batched query** over
+  `main.supply_chain.fact_supply_chain_kpi_monthly` covering all prompts on the
+  page (≤ ~12 rows of slices), returned alongside the existing payload, rendered
+  as **inline SVG `<polyline>`, not ECharts** — twelve cards would otherwise mean
+  twelve canvas contexts and twelve `init` calls for a 60x18px graphic. Note the
+  endpoint already costs 9.3s on a cold warehouse; measure before and after.
+
+- [ ] **DEC-AGENT — the agentic step on a decision card** — cards today end at a
+  governed action POST (rules engine → HITL). The plug-and-play shape is to keep
+  the card's producer swappable so a Genie/agent-authored prompt renders through
+  the same component, and to add an "investigate this" step that runs a scoped
+  agent against the prompt's own evidence SQL. **Prerequisite still open: the
+  spend budget/guardrail before any executor** (see the agentic-groundwork
+  memory) — do not wire an executor before that gate exists.
+
+- [x] **DEC-DEADSHELL-2026-07-29 — Decisions surface auto-loads; cockpit is the
+  default experience** — the "dead shell" was one starved fetch, not a design
+  gap: the KPI strip, severity bars and donut all derive from the decision fetch
+  that a click was gating. Auto-load bounded to once per scope per session (SQL
+  only, 0 LLM tokens); skeleton for the measured 9.3s cold-warehouse wake;
+  served mode `segregated` → `combined` (fail-safe stays `segregated`);
+  plain-language pass; sidebar pinned to the viewport and given the persona
+  switcher it never had. Commits `9f22837`, `71b6d95`, `fc57c72`.
+
 - [~] **RESPONSIVE-2026-07-29 — measured, mostly already covered; two evidence gaps remain** —
   Measurement pass against the PRODUCTION bundle (preview 7003 → proxy 7000),
   CDP device emulation, geometry measured in-page (page/element overflow past
