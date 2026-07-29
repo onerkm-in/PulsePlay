@@ -8,6 +8,18 @@
 
 Ordered by impact × cost. Each item is independently shippable.
 
+- [ ] **CHART-MISSING-SERIES (found in headed validation 2026-07-29 evening)** —
+  the 5-measure mixed-unit repro ("OFR, OTIF, net sales, gross margin, GHG by
+  year") renders dual axes CORRECTLY (left magnitudes 500.0M-3.0MM, right
+  0-100%) but plots only 3 of 5 series: OTIF and Net Sales appear in the
+  legend yet draw no bars (Net Sales at ~1.9B would rescale the left axis to
+  ~2B — it doesn't, so the series data isn't reaching the plot). Suspects:
+  extractCategorySeries dropping columns, or series values arriving as
+  formatted strings from this query shape. Screenshot:
+  scratchpad val-mixed-chart.png. Repro question above; fix + pin with a
+  5-series mixed-unit test.
+
+
 - [~] **VIZ-DECLARED — first two slices SHIPPED**: (1) UC comments declare
   unit/direction on the decision fact; (2) Lakeview counters honour spec-
   declared style.rules — the SCM board is colour-coded by data fact (OTIF
