@@ -99,3 +99,51 @@
   padding: 5px 9px;
   display: inline-block;
 }
+
+/* Loading skeleton — the prompt store runs on a SQL warehouse that takes ~10s
+   to wake from cold. Ten seconds of blank space reads as a broken screen, so
+   these stand in at the real card's dimensions: the shimmer says "working" and
+   the reserved height stops arriving prompts from shifting the page. */
+.dpc-skel {
+  position: relative;
+  display: flex;
+  margin-bottom: var(--space-3);
+  background: var(--pp-surface-raised, #ffffff);
+  border: 1px solid var(--color-divider);
+  border-left: 4px solid var(--color-divider);
+  border-radius: var(--radius-lg, 7px);
+  overflow: hidden;
+  animation: dpc-skel-fade 1.4s ease-in-out infinite;
+}
+
+.dpc-skel__body {
+  flex: 1;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.dpc-skel__line {
+  display: block;
+  height: 10px;
+  border-radius: 3px;
+  /* color-mix keeps the placeholder theme-aware — a hard-coded grey would stay
+     light-ramp in dark mode, exactly the bug fixed on .dpc above. */
+  background: color-mix(in srgb, var(--color-divider) 70%, transparent);
+}
+
+.dpc-skel__line--chip { width: 68px; height: 14px; }
+.dpc-skel__line--head { width: 62%; height: 15px; }
+.dpc-skel__line--text { width: 88%; }
+.dpc-skel__line--short { width: 44%; }
+
+@keyframes dpc-skel-fade {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+
+/* Respect a reduced-motion preference: keep the placeholder, drop the pulse. */
+@media (prefers-reduced-motion: reduce) {
+  .dpc-skel { animation: none; opacity: 0.75; }
+}

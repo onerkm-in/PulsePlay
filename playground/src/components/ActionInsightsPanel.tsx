@@ -125,20 +125,41 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, hideH
         }
     }, [base, demoPersona, assistantProfile]); // eslint-disable-line react-hooks/exhaustive-deps -- profileQuery/profileHeaders derive from assistantProfile
 
-    // Mount / scope-change hydration — CACHE ONLY, never a fetch. The
-    // warehouse is queried exclusively from the Load/Refresh buttons, a
-    // persona switch, or the post-action refetch.
+    // One auto-load per scope per session. A ref (not state) because this must
+    // survive re-renders without causing one, and must NOT reset when the
+    // effect re-runs for an unrelated dep change.
+    const autoLoadedRef = useRef<Set<string>>(new Set());
+
+    // Mount / scope-change hydration — cache first, then AT MOST ONE fetch.
+    //
+    // 2026-07-29: this surface previously required a "Load decisions" click.
+    // That starved the whole cockpit — the KPI strip, the severity donut and
+    // the impact totals all derive from THIS fetch, so an unclicked page read
+    // "0 open / n/a impact" as though the queue were clear. The gate was
+    // protecting the wrong thing.
+    //
+    // Auto-loading here costs exactly what the button cost: the prompt store is
+    // a SELECT over a precomputed Delta table — no model call, no token spend.
+    // The no-spend rule still holds where it earns its keep: the LLM briefing
+    // and Ask Pulse remain intent-only.
+    //
+    // Bounded deliberately: once per (base, profile, persona) per session, never
+    // on a timer, and skipped entirely when the session cache is warm.
     useEffect(() => {
-        const hit = readPromptCache(`${base}|${assistantProfile || ""}|${demoPersona}`);
+        const key = `${base}|${assistantProfile || ""}|${demoPersona}`;
+        const hit = readPromptCache(key);
         if (hit) {
             setData(hit.body);
             setFetchedAt(hit.fetchedAt);
             onDataRef.current?.(hit.body.prompts || []);
-        } else {
-            setData(null);
-            setFetchedAt(null);
+            return;
         }
-    }, [base, assistantProfile, demoPersona]);
+        setData(null);
+        setFetchedAt(null);
+        if (autoLoadedRef.current.has(key)) return;  // already tried this scope
+        autoLoadedRef.current.add(key);
+        void load();
+    }, [base, assistantProfile, demoPersona]); // eslint-disable-line react-hooks/exhaustive-deps -- `load` is recreated per scope; depending on it would re-fire this effect
 
     const onAction = useCallback(async (promptId: string, action: string) => {
         setBusyId(promptId);
@@ -240,17 +261,34 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, hideH
             )}
 
             {loading && !data && (
-                <div className="text-muted" style={{ fontSize: 13, padding: "24px 0" }}>
-                    Scanning KPIs for decisions…
+                // A cold SQL warehouse takes ~10s to wake. Blank space for ten
+                // seconds reads as "broken"; skeleton cards in the shape of the
+                // real ones read as "working", and set the layout up front so
+                // arriving prompts don't shift the page.
+                <div data-testid="action-insights-skeleton" aria-busy="true" aria-live="polite">
+                    <div className="text-muted" style={{ fontSize: 12.5, marginBottom: 10 }}>
+                        Scanning KPIs for decisions…
+                    </div>
+                    {[0, 1, 2].map((i) => (
+                        <div key={i} className="dpc-skel" style={{ animationDelay: `${i * 120}ms` }}>
+                            <span className="dpc-skel__rail" />
+                            <div className="dpc-skel__body">
+                                <span className="dpc-skel__line dpc-skel__line--chip" />
+                                <span className="dpc-skel__line dpc-skel__line--head" />
+                                <span className="dpc-skel__line dpc-skel__line--text" />
+                                <span className="dpc-skel__line dpc-skel__line--short" />
+                            </div>
+                        </div>
+                    ))}
                 </div>
             )}
 
             {!loading && !data && !error && (
-                // Intent gate — first visit with no session cache. The stack
-                // loads only when the user asks.
+                // Reachable only when the auto-load was skipped or returned
+                // nothing usable — a manual retry, not the primary path.
                 <div style={{ padding: "28px 0", textAlign: "center" }}>
                     <div className="text-muted" style={{ fontSize: 13.5, marginBottom: 12 }}>
-                        Decision prompts are fetched from the governed store on demand.
+                        Decision prompts come from the governed store.
                     </div>
                     <button
                         type="button"

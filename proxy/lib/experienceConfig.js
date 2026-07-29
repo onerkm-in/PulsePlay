@@ -23,7 +23,22 @@ const fs = require('fs');
 const path = require('path');
 
 const MODES = Object.freeze(['segregated', 'cockpit', 'combined']);
+
+// Two different jobs, deliberately not the same constant:
+//
+// FALLBACK_MODE is the FAIL-SAFE — what a kill switch drops to, and what an
+// unreadable or invalid config resolves to. It stays `segregated` because that
+// shell is the simplest, longest-proven path; the escape hatch is worthless if
+// it lands somewhere newer than what it is rescuing you from.
+//
+// DEFAULT_MODE is what a deployment serves before an author has published
+// anything. 2026-07-29: raised from `segregated` to `combined` — the cockpit is
+// the intended landing experience (one plate: KPIs, severity, decisions), and
+// `combined` keeps the top-tab nav so Dashboard / Ask Pulse / AI Insights stay
+// reachable. Plain `cockpit` would strand end users with no cross-screen nav,
+// since only an author can change modes.
 const FALLBACK_MODE = 'segregated';
+const DEFAULT_MODE = 'combined';
 const STORE_FILE = process.env.PP_EXPERIENCE_STORE
     || path.join(__dirname, '..', '.pp-experience-config.json');
 
@@ -31,7 +46,7 @@ const STORE_FILE = process.env.PP_EXPERIENCE_STORE
 let _cache = null;
 
 function _defaultConfig() {
-    return { mode: FALLBACK_MODE, version: 0, updated_by_actor_id: null, updated_at: null };
+    return { mode: DEFAULT_MODE, version: 0, updated_by_actor_id: null, updated_at: null };
 }
 
 function _validMode(m) { return MODES.includes(m); }

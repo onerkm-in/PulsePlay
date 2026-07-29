@@ -41,12 +41,15 @@ beforeEach(() => {
 afterAll(() => mod.__test.reset());
 
 describe('fail-safe + resolution', () => {
-    test('defaults to segregated when nothing is published', () => {
+    // The unpublished default is `combined` (cockpit plate + top-tab nav), NOT
+    // the fail-safe. The kill-switch case below pins that `segregated` is still
+    // where things land when something goes wrong — the two must not converge.
+    test('defaults to combined when nothing is published', () => {
         const r = mount();
         const res = makeRes();
         r.get['/experience/config'](makeReq(), res);
-        expect(res.body.served_mode).toBe('segregated');
-        expect(res.body.published_mode).toBe('segregated');
+        expect(res.body.served_mode).toBe('combined');
+        expect(res.body.published_mode).toBe('combined');
         expect(res.body.version).toBe(0);
         expect(res.headers['Cache-Control']).toBe('no-store');
     });
@@ -86,10 +89,10 @@ describe('author-gated publish', () => {
         const res = makeRes();
         r.put['/experience/config'](makeReq({ body: { mode: 'combined' }, user: { roles: ['Supply Chain Planner'] } }), res);
         expect(res.statusCode).toBe(403);
-        // served mode unchanged
+        // served mode unchanged — still the unpublished default
         const g = makeRes();
         r.get['/experience/config'](makeReq(), g);
-        expect(g.body.served_mode).toBe('segregated');
+        expect(g.body.served_mode).toBe('combined');
     });
 
     test('with PP_REQUIRE_AUTHOR_ROLE, an identity-less caller cannot publish', () => {
@@ -127,6 +130,6 @@ describe('validation + concurrency', () => {
 
     test('resolvePublishedMode is the single source of truth (never from client)', () => {
         mount();
-        expect(mod.resolvePublishedMode()).toBe('segregated');
+        expect(mod.resolvePublishedMode()).toBe('combined');
     });
 });
