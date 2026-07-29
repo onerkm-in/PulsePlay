@@ -5,6 +5,36 @@ type: project
 originSessionId: current
 ---
 
+**Current state - 2026-07-28 (Databricks-native dashboard shade, retro-logged):**
+Branch `design/nav-consistency` = `main` at `5ccfdf2`. **All green:** playground
+**1943/1943** (151 files), proxy **1528/1528** (85 suites), tsc + production
+build clean. Eleven commits (`9e08a7b`→`5ccfdf2`) shipped the all-Databricks
+shade and were logged retrospectively — they had no HANDOVER entry, which is why
+the audit session saw them as "pre-existing uncommitted Lakeview/server work".
+**Both axes are now deployment-declared** rather than per-browser: the proxy
+carries a Power BI report id and `syncDeploymentDefaults()` seeds a fresh
+browser's AI profile + embed target (the "old dashboard URL" report was a
+localStorage embed target pointing at the pre-SCM Superstore report in the SAME
+workspace — two panes disagreeing while nothing looked broken). **Databricks
+AI/BI dashboards render natively** from `/api/2.0/lakeview/dashboards/{id}`:
+spec parsed, datasets executed BY NAME (the browser never sends SQL; a
+`DROP TABLE` smuggle attempt returns 400), widgets drawn with the ECharts
+already shipped. Measured **37/40 widgets native (92.5%)**; `forecast-line`,
+`box`, `pivot` fall back to iframe. `databricks-aibi` graduated the
+catalogue-curation lever accordingly. **Push-down aggregation** wraps the
+author's SQL with the widget's own GROUP BY — measured **20.02 MB → 1.9 KB
+(10,550x)**, which removes both our row cap and the Statement Execution API's
+inline ceiling as correctness factors. New Delta rollups
+(`tbl_pp_syn_agg_*`) rebuild inside `rebuild_views()` on purpose. TRIPWIRES:
+a chart built from a truncated sample is silently wrong (now refused with the
+shortfall named); ECharts sizes at `init()` so an auto-height container renders
+0x0 while reporting success; `vite preview` now proxies `/api` so prod-only
+bugs are reproducible before deploy; the curation lever has TWO codifying pins.
+OPEN: ~20 statements per dashboard page (dedupe by dataset+grouping), the
+all-Databricks pair is not in `CANDIDATE_PAIRS`, a reported header/tab-strip
+misalignment, and a flaky `AppErrorBoundary` test. Authoritative detail:
+**[docs/HANDOVER.md](../HANDOVER.md)** top entry.
+
 **Current state - 2026-07-28 (Clean Code knowledge base + conformance audit):**
 Branch `design/nav-consistency`; `1065398` is the source-cited knowledge-base
 commit, with audit/docs follow-up immediately after. Added

@@ -5,6 +5,32 @@
 
 ---
 
+## 2026-07-28 (latest+31) — Databricks-native dashboard shade (retro-logged); both axes now deployment-declared
+
+**Doc-hygiene debt paid.** Commits `9e08a7b` → `5ccfdf2` (eleven) shipped without a HANDOVER entry or `project_state.md` refresh — the audit session recorded them as "pre-existing uncommitted Lakeview/server work" precisely because they were not logged. This entry is retrospective; the code is already on `main` and green.
+
+**Both axes are now declared by the DEPLOYMENT, not by each browser.** `9e08a7b` + `f5874b0`: the proxy accepts a Power BI report id and surfaces `powerbiGroupId`/`powerbiReportId` as routing metadata (both appear in any embed URL; the token is still minted server-side), and `syncDeploymentDefaults()` seeds a fresh browser's AI profile and embed target from `/assistant/profiles`. Root cause of the "old dashboard URL" report: the embed target lived ONLY in localStorage, so a browser configured months earlier kept opening the pre-SCM Superstore report from the SAME workspace — nothing looked broken while the two panes disagreed. `f3a9e40` adds a coherence notice with a one-click fix; it reports and never auto-overwrites, because repointing the Dashboard can be deliberate.
+
+**Databricks AI/BI dashboards now render NATIVELY (the "all-Databricks" shade).** Established live first: `GET /api/2.0/lakeview/dashboards/{id}` returns `serialized_dashboard` with `datasets` (the author's SQL in `queryLines`) and `pages[].layout[].widget`, whose `spec.encodings` is Vega-Lite-shaped. So we read the spec, run its datasets, and draw with the ECharts this repo already ships — no iframe, no SDK dependency, no embedding allowlist, and a real event bridge (`831a469`, `955454f`, `6ee1497`). Measured coverage on the reference dashboard: **37 of 40 widgets native (92.5%)**; `forecast-line`, `box`, `pivot` fall back. `databricks-aibi` consequently GRADUATED the catalogue-curation lever (`5914ed6`) — it is no longer an iframe stub, which was the only reason it was hidden.
+
+**Security property of the new routes:** the browser sends a dataset NAME, never SQL. The proxy resolves the statement from the spec it fetched itself, and rejects any request carrying `sql`/`statement`/`query`/`queryText` even though nothing reads them — verified live with a `DROP TABLE` smuggle attempt returning 400.
+
+**Push-down aggregation (`1734ace`) is what makes this scale-independent.** A chart's encodings ARE a `GROUP BY`, so the proxy wraps the author's SQL rather than fetching its rows. Measured live, same five widgets: **20.02 MB → 1.9 KB (10,550x)**. Field names come from the spec, are pattern-validated and backtick-quoted, and six injection shapes are pinned as declined. The governing rule is DECLINE rather than guess: anything unmappable runs the author's SQL unchanged.
+
+**`8361fef`** adds pre-aggregated Delta rollups (`tbl_pp_syn_agg_market_period` 336 rows, `tbl_pp_syn_agg_company_period` 30) rebuilt INSIDE `rebuild_views()` — deliberately, because Power BI drifted this week precisely by being a separate refresh step someone had to remember.
+
+**Tripwires earned this session:**
+- **A chart drawn from a truncated sample is silently wrong.** When the server declines a widget's aggregation it returns raw rows capped at the render limit (observed `rows:1000` of `totalRows:5000`); the client would have grouped that sample and presented it as the total. Charts/counters whose result is BOTH non-aggregated and truncated are now refused with a fallback naming the shortfall.
+- **ECharts sizes at `init()`.** An auto-height flex child measures 0, so every canvas rendered 0x0 *while the code reported success*. The explicit chart-body height in `lakeview.css` is load-bearing.
+- **`vite preview` had no `/api` proxy**, so a production bundle could not be validated locally — and two prod-only bugs (CSS cascade order, dep bundling) bit this week. `vite.config.ts` now mirrors `server.proxy` into `preview`.
+- The curation lever has **TWO** codifying pins (`registry.parity` and `vendorMatrix`); `5914ed6` moved one and missed the other.
+
+**Known and NOT fixed — reported, not buried:** push-down traded payload for query COUNT. Each chart/counter runs its own statement, so a page issues ~20 requests. `5ccfdf2` made the fill sequential (shell paints first, one statement at a time, `whenFilled` for tests) which fixed the blank-screen wait, but the remaining work is to dedupe statements across widgets sharing a dataset AND a grouping. Also open: the all-Databricks pair is not yet in `CANDIDATE_PAIRS`; a header/tab-strip misalignment the user reported by screenshot is unaddressed; `AppErrorBoundary.test` failed once in a full run and passed in isolation and on re-run (flaky, pre-existing).
+
+Validation at `5ccfdf2`: playground **1,943/1,943** (151 files), proxy **1,528/1,528** (85 suites), tsc clean, production build clean. Hosted app redeployed three times during the arc; the last deploy predates `1734ace`.
+
+---
+
 ## 2026-07-28 (latest+30) — Clean Code knowledge base + evidence-led conformance audit
 
 Commits: `1065398` (knowledge base) + audit/docs follow-up. No production code

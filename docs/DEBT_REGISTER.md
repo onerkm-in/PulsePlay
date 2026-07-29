@@ -128,6 +128,18 @@ Legend — Risk: how dangerous the fix is. Decision: `—` = executable as descr
 | **Decision** | — |
 | **Status** | **RETIRED 2026-07-28** (`MARKET_ECON` in cpg_reskin.py; tables regenerated). Live after: margin spread **9.49 pp** (VE 50.31% … UY 59.80%, was 0.90 pp) and size ratio **8.8x** (BR $469 MN … SV $53 MN, was ~1.1x), with YoY trends and the company margin trend intact. 3 new pins. |
 
+## D12 — `AGENTS.md` duplicates `CLAUDE.md` and has drifted into contradiction
+
+| | |
+|---|---|
+| **Evidence** | `AGENTS.md` is a near-copy of `CLAUDE.md` that stopped being updated. At HEAD `5ccfdf2` it states: `playground/src/components/AISidebar.tsx` (deleted; now `UnifiedAssistantSurface`), `VendorPicker`/`ConnectorPicker` in `App.tsx` (removed), "nine backend paths" (`:73`, `:155` — there are ten), proxy on `8787` and Vite on `5173` (`:114-127` — canonical is `PORT=7000`/`7001`, and CLAUDE.md records that starting the proxy without `PORT=7000` makes every `/api/*` call 500), `ADR-0003` stagger at `server.js:3556` (`:159` — actually `:6385`, and the ADR is 2000 ms not 800), and status "161/161 playground tests" (`:187` — 1,943). |
+| **Observed harm** | An onboarding agent that reads `AGENTS.md` instead of `CLAUDE.md` gets the wrong ports, wrong file names, and a wrong backend count. The port error in particular produces a total-failure mode the doc itself does not warn about. |
+| **Standard** | Knowledge base §1 (comments/docs must not drift; prefer one vocabulary and one owning source) and §4 (remove duplicated knowledge — the duplication is the defect, not the staleness). Book PDF pp. 160-196, 510-524. |
+| **Target state** | Make `AGENTS.md` a short pointer to `CLAUDE.md` plus any genuinely Codex-specific notes, so there is one owning source. Do NOT hand-sync two full copies — that recreates the drift. |
+| **Risk** | Low — documentation only, no runtime effect. |
+| **Decision** | — |
+| **Status** | OPEN — found during 2026-07-28 onboarding; not fixed in the same change, to keep the doc-hygiene commit behaviour-free and reviewable |
+
 ## D7 — Server-side spend budget (planned, not yet built)
 
 The last gate before any agent executor: all four no-spend-without-intent gates are client-side.
