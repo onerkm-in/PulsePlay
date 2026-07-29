@@ -8,6 +8,21 @@
 
 Ordered by impact × cost. Each item is independently shippable.
 
+- [ ] **CHART-HONEST-FALLBACK — STOP the whack-a-mole (decision, 2026-07-29
+  night)** — three symptom fixes in one day (tooltip %, dual axes, OTIF
+  acronym) and the next query shape still hid a series (Net Sales B in
+  billions-units). Root cause is unfixable by more heuristics: heuristically
+  charting ARBITRARY agent output with mixed units and 10^3+ magnitude gaps
+  will always find a new way to mislead. Decision: when series are
+  incommensurable beyond ONE honest dual-axis split (unit mix beyond %-vs-one-
+  magnitude-group, or magnitude gap >=10^3 within an axis), the chart panel
+  REFUSES the combined chart - render the TABLE as primary (it is always
+  true) plus a per-measure chart picker, exactly the refuse-rather-than-guess
+  posture the Lakeview mapper already uses. Suffix-decode (_b/_mm) columns
+  before the check. VIZ-DECLARED (chart builder reads unit= from UC comments)
+  remains the systemic path; this fallback makes the product safe regardless.
+
+
 - [~] **CHART-MISSING-SERIES — half closed**: OTIF FIXED (name-heuristic didn't
   know the acronym is a %, so 93.4 plotted sub-pixel on the millions axis; KPI
   acronyms otif/ofr/mape/accuracy/utilization/availability/adherence now
