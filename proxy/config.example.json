@@ -1,140 +1,178 @@
 {
-    "port": 8787,
-    "feedbackLog": "feedback.log",
-    "allowlistEnforcement": "strict",
-    "allowlist": {
-        "biProviders": ["powerbi"],
-        "embedOrigins": {
-            "powerbi": ["app.powerbi.com"]
-        },
-        "powerbiWorkspaces": ["YOUR_POWER_BI_WORKSPACE_ID"],
-        "powerbiReports": [],
-        "aadTenants": ["YOUR_AAD_TENANT_ID"],
-        "aiProfiles": {
-            "default": ["default", "supervisor"],
-            "byGroup": {}
-        },
-        "genieSpaces": ["YOUR_GENIE_SPACE_ID"],
-        "supervisorProfiles": ["supervisor"],
-        "packs": ["cpg-fmcg"],
-        "knowledgeSources": [],
-        "display": {
-            "_doc": "Viewer-facing canvas policy. biTileMode controls how many BI frames render in the playground (1, 2, or 4). Keep 1 for most enterprise users; use 2/4 only for governed comparison deployments.",
-            "biTileMode": "1"
-        },
-        "license": {
-            "powerbi": {
-                "minTier": "Premium",
-                "allowedTiers": ["Premium P1", "Premium P2", "Premium P3", "PPU"],
-                "embedSku": ["EM1", "EM2", "EM3"],
-                "fabricEnabled": false
-            }
-        }
+  "port": 8787,
+  "feedbackLog": "feedback.log",
+  "allowlistEnforcement": "strict",
+  "allowlist": {
+    "biProviders": [
+      "powerbi"
+    ],
+    "embedOrigins": {
+      "powerbi": [
+        "app.powerbi.com"
+      ]
     },
-    "profiles": {
-        "default": {
-            "host": "https://adb-WORKSPACE_ID.REGION.azuredatabricks.net",
-            "token": "dapi_YOUR_PAT_TOKEN_HERE",
-            "spaceId": "YOUR_GENIE_SPACE_ID",
-            "warehouseId": "OPTIONAL_SQL_WAREHOUSE_ID",
-            "displayName": "Default helper",
-            "dataDomain": "the data"
-        },
-        "_oauth_m2m_example": {
-            "_doc": "TIER B (production) — Service Principal OAuth M2M auth. Replaces shared PAT with a rotatable, auditable, Unity Catalog-grantable identity. Requires creating a Databricks Service Principal + OAuth secret in workspace settings. Token is fetched from /oidc/v1/token via client_credentials grant on first request, cached per-(host, clientId), single-flight protected, and refreshed 5min before expiry. Falls back gracefully to PAT on any profile that omits authMode.",
-            "host": "https://adb-WORKSPACE_ID.REGION.azuredatabricks.net",
-            "authMode": "oauth-m2m",
-            "clientId": "YOUR_SERVICE_PRINCIPAL_CLIENT_ID",
-            "clientSecret": "YOUR_SERVICE_PRINCIPAL_CLIENT_SECRET",
-            "spaceId": "YOUR_GENIE_SPACE_ID",
-            "warehouseId": "YOUR_SQL_WAREHOUSE_ID",
-            "displayName": "Production SP profile",
-            "dataDomain": "production data"
-        },
-        "_openai_analytics_example": {
-            "_doc": "IDEA-040 Cycle 7 — Azure OpenAI as analytics-grade backend. When mode='analytics' AND schemaContext is present, proxy orchestrates LLM-for-SQL → Databricks SQL exec → LLM-for-narrative pipeline (mirrors what Genie does). Requires both Azure OpenAI creds AND Databricks PAT/SP for SQL execution. Without mode='analytics', the profile remains chat-only.",
-            "azureOpenAiEndpoint": "https://YOUR_AOAI.openai.azure.com",
-            "azureOpenAiKey": "YOUR_AZURE_OPENAI_KEY",
-            "azureOpenAiDeployment": "gpt-4o",
-            "azureOpenAiApiVersion": "2024-02-01",
-            "mode": "analytics",
-            "host": "https://adb-WORKSPACE_ID.REGION.azuredatabricks.net",
-            "token": "dapi_PAT_FOR_SQL_EXEC",
-            "warehouseId": "YOUR_SQL_WAREHOUSE_ID",
-            "schemaContext": "TABLE main.superstore.fct_orders (order_id STRING, order_date DATE, region STRING, segment STRING, category STRING, sales DOUBLE, profit DOUBLE, quantity INT)\nTABLE main.superstore.dim_customers (customer_id STRING, customer_name STRING, segment STRING)"
-        },
-        "_foundation_model_example": {
-            "_doc": "Cycle 47.6 — Foundation Model serving endpoint (Mosaic AI Model Serving). OpenAI-compatible chat-completions schema with optional JSON-schema structured output. Use for sections that need real reasoning + format guarantees (RECOMMENDED ACTIONS, RISKS, OPPORTUNITIES) where Genie Chat alone struggles. Genie Agent Mode (Deep Research) is UI-only during public preview, so this is the workaround that stays inside Databricks: Genie pulls the data, foundation model formats reasoning under your own system prompt.",
-            "type": "foundation-model",
-            "host": "https://adb-WORKSPACE_ID.REGION.azuredatabricks.net",
-            "token": "dapi_PAT_OR_USE_AUTHMODE_OAUTH_M2M",
-            "foundationModelEndpoint": "databricks-meta-llama-3-3-70b-instruct",
-            "_doc_endpoint": "MUST be a name from your workspace's serving-endpoints list (GET /api/2.0/serving-endpoints). Names differ per tier — Databricks Free Edition has e.g. databricks-meta-llama-3-3-70b-instruct / databricks-meta-llama-3-1-8b-instruct / databricks-llama-4-maverick / databricks-claude-opus-4-8, and does NOT have *-405b. A wrong name returns 404 ENDPOINT_NOT_FOUND. See docs/CONNECTOR_REQUIREMENTS.md.",
-            "displayName": "Foundation Model — Llama 3.3 70B"
-        },
-        "_doc_multi_genie_spaces": "MULTI-GENIE CONNECTOR PATTERN — to expose several Databricks Genie spaces as separate selectable connectors, add ONE profile per space (each with its own spaceId; reuse the same host+token when they live in the same workspace). The connector picker lists every profile from /assistant/profiles automatically, and a supervisor-local profile with empty spaces:[] auto-fans-out across all of them. Example set (mirrors the sister Pulse project): { customer, sales, operations, hse } each { type:'genie', host, token, spaceId, displayName, dataDomain }. See docs/CONNECTOR_REQUIREMENTS.md §1.",
-        "sales": {
-            "host": "https://adb-ANOTHER_WORKSPACE.REGION.azuredatabricks.net",
-            "token": "dapi_ANOTHER_TOKEN",
-            "spaceId": "SALES_SPACE_ID",
-            "warehouseId": "",
-            "displayName": "Sales helper",
-            "dataDomain": "sales data",
-            "suggestedQuestions": [
-                "What were the top 3 categories by profit margin last quarter?",
-                "Which region declined most in revenue year-over-year?",
-                "Show me top 5 customers by total revenue."
-            ],
-            "schemaContext": {
-                "domain": "Sales, profit, margin, category, product, customer, and regional performance",
-                "grain": "order line-item",
-                "salesColumn": "sales",
-                "profitColumn": "profit",
-                "keyColumns": ["order_id","order_date","region","segment","category","sales","profit","quantity","discount"]
-            },
-            "syntheticIndicators": {
-                "columns": [],
-                "message": "Some figures shown are synthetic estimates derived from patterns in the data, not recorded measurements."
-            }
-        },
-        "supervisor": {
-            "type": "supervisor-local",
-            "agentName": "PulsePlay Supervisor",
-            "synthesisEndpoint": "databricks-meta-llama-3.1-405b-instruct",
-            "spaces": [],
-            "crossDomainNotes": [
-                "Optional free-form notes the supervisor passes to its synthesis prompt to help it reconcile data from multiple sources. Example: 'Numbers from the operations source are monthly aggregates rounded to 2 decimals, while the order source is line-level — small variances under 1% are normal.'"
-            ]
-        },
-        "_supervisor_real_example": {
-            "_doc": "ALTERNATIVE: type='supervisor' points the proxy at a real Databricks Mosaic AI Supervisor Agent serving endpoint (built using databricks-agents/supervisor/). The agent owns routing + synthesis, so spaces[]/synthesisEndpoint are not used. See databricks-agents/supervisor/README.md for how to build and deploy one.",
-            "type": "supervisor",
-            "host": "https://dbc-...cloud.databricks.com",
-            "endpoint": "/serving-endpoints/pulseplay-supervisor-agent/invocations",
-            "agentName": "PulsePlay Supervisor Agent",
-            "token": "<PAT or service-principal token with CAN_USE on the endpoint>",
-            "displayName": "PulsePlay Supervisor Agent",
-            "dataDomain": "all helper data"
-        },
-        "_powerbi_semantic_model_example": {
-            "_doc": "Cycle 15 — Power BI semantic-model AI brain. Deterministic, no-LLM. PulsePlay probes the published dataset via INFO.* DAX functions, then matches each user question to one of four DAX templates (top-n, aggregate-by, trend, total) and executes it through POST .../datasets/{id}/executeQueries. Setup: (1) create an Azure AD app registration + client secret. (2) Add the service principal to the target Power BI workspace as a Member. (3) Enable 'Service principals can use Power BI APIs' in the Power BI admin portal. (4) Fill the fields below.",
-            "type": "powerbi-semantic-model",
-            "displayName": "Power BI: Sales Semantic Model",
-            "dataDomain": "Sales performance",
-            "aadTenantId": "YOUR_AAD_TENANT_GUID",
-            "aadClientId": "YOUR_SERVICE_PRINCIPAL_CLIENT_ID",
-            "aadClientSecret": "YOUR_SERVICE_PRINCIPAL_CLIENT_SECRET",
-            "powerbiGroupId": "YOUR_POWERBI_WORKSPACE_GUID",
-            "powerbiDatasetId": "YOUR_POWERBI_DATASET_GUID"
-        },
-        "_doc_displayName": "Optional. Friendly label shown in the visual's progress text and source attributions (e.g. 'Sales helper'). If omitted, falls back to a title-cased profile key.",
-        "_doc_dataDomain":  "Optional. Short noun phrase for what this helper covers (e.g. 'sales data', 'customer & returns data'). Used in step text like 'Sales helper is checking sales data'. If omitted, falls back to 'the data'.",
-        "_doc_suggestedQuestions": "Optional. Per-profile starter questions surfaced as clickable chips on the visual's Welcome / Try-Asking strip (IDEA-006). Up to 8 strings. When present, replaces the generic static suggestions for this profile. Via env var: PROXY_PROFILE_<NAME>_SUGGESTED_QUESTIONS=comma,separated,list.",
-        "_doc_schemaContext": "Optional. Per-profile schema metadata fed to the supervisor's synthesis LLM so it knows each source's columns, grain, and metric naming. Without this, the supervisor still works but won't be able to flag cross-source metric mismatches. Fields: { domain (string), grain (string), salesColumn (string), profitColumn (string), keyColumns (string[]) }.",
-        "_doc_syntheticIndicators": "Optional. Per-profile list of column names whose values are derived/estimated rather than measured (e.g. churn-risk scores, predicted ratings). When the AI returns a result containing any of these columns, the confidence chip surfaces a 'synthetic data' caveat using the supplied message. Fields: { columns (string[]), message (string, optional) }.",
-        "_doc_supervisor_spaces": "Optional. List of profile names the supervisor fans out to. Leave empty/omit to default to every configured non-supervisor profile — supports any naming.",
-        "_doc_supervisor_crossDomainNotes": "Optional. Free-form notes (string or array) appended to the synthesis prompt to help the LLM reconcile cross-source numbers. Replaces any baked-in defaults — leave unset to use the bundled demo's ops-vs-orders note (only fires when profiles named 'ops' and any other are both present).",
-        "_doc_envProfiles": "IDEA-016 phase 2 — profiles can ALSO be layered via environment variables using the convention PROXY_PROFILE_<NAME>_<FIELD> (e.g. PROXY_PROFILE_SALES_HOST, PROXY_PROFILE_SALES_TOKEN, PROXY_PROFILE_SALES_SPACE_ID, PROXY_PROFILE_SALES_DISPLAY_NAME). Env vars MERGE per-field with config.json profiles of the same name (env wins) and append new profiles that don't exist in config.json. Useful for containerised / Databricks Apps deployments where committing config.json isn't possible. Field map: HOST, TOKEN, SPACE_ID, WAREHOUSE_ID, PROXY_KEY, DISPLAY_NAME, DATA_DOMAIN, AGENT_NAME, SYNTHESIS_ENDPOINT, SPACES (comma-separated), TYPE, FOUNDATION_MODEL_ENDPOINT, POWER_BI_CLIENT_ID, POWER_BI_CLIENT_SECRET, POWER_BI_TENANT_ID, POWER_BI_ALLOW_EDIT, POWER_BI_RLS_ENABLED, POWER_BI_RLS_REQUIRED, POWER_BI_RLS_USERNAME, POWER_BI_RLS_USERNAME_CLAIM, POWER_BI_RLS_ROLES (comma-separated).",
-        "_doc_powerBiEmbedToken": "Cycle A — POST /assistant/embed-token/powerbi mints short-lived Power BI embed tokens via Azure AD service principal (client_credentials grant). Add powerBiClientId / powerBiClientSecret / powerBiTenantId to a profile to enable. Tokens are cached per (profile, workspace, reportId, datasetId, accessLevel, RLS identity hash) with TTL = expiry minus 60s buffer; concurrent requests for the same non-secret key share a single AAD round-trip via single-flight protection. Browser-supplied identities/effectiveIdentity payloads are rejected. Optional RLS identities are derived server-side from verified IdP claims (default claim order: email, preferredUsername, upn) or from a server-configured powerBiRlsUsername. Edit tokens require powerBiAllowEdit=true on the profile. The client secret is NEVER returned to the browser, written to the audit log, or used as part of the cache key. Each issuance produces an audit entry stamped with the service principal's identity hash."
+    "powerbiWorkspaces": [
+      "YOUR_POWER_BI_WORKSPACE_ID"
+    ],
+    "powerbiReports": [],
+    "aadTenants": [
+      "YOUR_AAD_TENANT_ID"
+    ],
+    "aiProfiles": {
+      "default": [
+        "default",
+        "supervisor"
+      ],
+      "byGroup": {}
+    },
+    "genieSpaces": [
+      "YOUR_GENIE_SPACE_ID"
+    ],
+    "supervisorProfiles": [
+      "supervisor"
+    ],
+    "packs": [
+      "cpg-fmcg"
+    ],
+    "knowledgeSources": [],
+    "display": {
+      "_doc": "Viewer-facing canvas policy. biTileMode controls how many BI frames render in the playground (1, 2, or 4). Keep 1 for most enterprise users; use 2/4 only for governed comparison deployments.",
+      "biTileMode": "1"
+    },
+    "license": {
+      "powerbi": {
+        "minTier": "Premium",
+        "allowedTiers": [
+          "Premium P1",
+          "Premium P2",
+          "Premium P3",
+          "PPU"
+        ],
+        "embedSku": [
+          "EM1",
+          "EM2",
+          "EM3"
+        ],
+        "fabricEnabled": false
+      }
     }
+  },
+  "profiles": {
+    "default": {
+      "host": "https://adb-WORKSPACE_ID.REGION.azuredatabricks.net",
+      "token": "dapi_YOUR_PAT_TOKEN_HERE",
+      "spaceId": "YOUR_GENIE_SPACE_ID",
+      "warehouseId": "OPTIONAL_SQL_WAREHOUSE_ID",
+      "displayName": "Default helper",
+      "dataDomain": "the data"
+    },
+    "_oauth_m2m_example": {
+      "_doc": "TIER B (production) — Service Principal OAuth M2M auth. Replaces shared PAT with a rotatable, auditable, Unity Catalog-grantable identity. Requires creating a Databricks Service Principal + OAuth secret in workspace settings. Token is fetched from /oidc/v1/token via client_credentials grant on first request, cached per-(host, clientId), single-flight protected, and refreshed 5min before expiry. Falls back gracefully to PAT on any profile that omits authMode.",
+      "host": "https://adb-WORKSPACE_ID.REGION.azuredatabricks.net",
+      "authMode": "oauth-m2m",
+      "clientId": "YOUR_SERVICE_PRINCIPAL_CLIENT_ID",
+      "clientSecret": "YOUR_SERVICE_PRINCIPAL_CLIENT_SECRET",
+      "spaceId": "YOUR_GENIE_SPACE_ID",
+      "warehouseId": "YOUR_SQL_WAREHOUSE_ID",
+      "displayName": "Production SP profile",
+      "dataDomain": "production data"
+    },
+    "_openai_analytics_example": {
+      "_doc": "IDEA-040 Cycle 7 — Azure OpenAI as analytics-grade backend. When mode='analytics' AND schemaContext is present, proxy orchestrates LLM-for-SQL → Databricks SQL exec → LLM-for-narrative pipeline (mirrors what Genie does). Requires both Azure OpenAI creds AND Databricks PAT/SP for SQL execution. Without mode='analytics', the profile remains chat-only.",
+      "azureOpenAiEndpoint": "https://YOUR_AOAI.openai.azure.com",
+      "azureOpenAiKey": "YOUR_AZURE_OPENAI_KEY",
+      "azureOpenAiDeployment": "gpt-4o",
+      "azureOpenAiApiVersion": "2024-02-01",
+      "mode": "analytics",
+      "host": "https://adb-WORKSPACE_ID.REGION.azuredatabricks.net",
+      "token": "dapi_PAT_FOR_SQL_EXEC",
+      "warehouseId": "YOUR_SQL_WAREHOUSE_ID",
+      "schemaContext": "TABLE main.superstore.fct_orders (order_id STRING, order_date DATE, region STRING, segment STRING, category STRING, sales DOUBLE, profit DOUBLE, quantity INT)\nTABLE main.superstore.dim_customers (customer_id STRING, customer_name STRING, segment STRING)"
+    },
+    "_foundation_model_example": {
+      "_doc": "Cycle 47.6 — Foundation Model serving endpoint (Mosaic AI Model Serving). OpenAI-compatible chat-completions schema with optional JSON-schema structured output. Use for sections that need real reasoning + format guarantees (RECOMMENDED ACTIONS, RISKS, OPPORTUNITIES) where Genie Chat alone struggles. Genie Agent Mode (Deep Research) is UI-only during public preview, so this is the workaround that stays inside Databricks: Genie pulls the data, foundation model formats reasoning under your own system prompt.",
+      "type": "foundation-model",
+      "host": "https://adb-WORKSPACE_ID.REGION.azuredatabricks.net",
+      "token": "dapi_PAT_OR_USE_AUTHMODE_OAUTH_M2M",
+      "foundationModelEndpoint": "databricks-meta-llama-3-3-70b-instruct",
+      "_doc_endpoint": "MUST be a name from your workspace's serving-endpoints list (GET /api/2.0/serving-endpoints). Names differ per tier — Databricks Free Edition has e.g. databricks-meta-llama-3-3-70b-instruct / databricks-meta-llama-3-1-8b-instruct / databricks-llama-4-maverick / databricks-claude-opus-4-8, and does NOT have *-405b. A wrong name returns 404 ENDPOINT_NOT_FOUND. See docs/CONNECTOR_REQUIREMENTS.md.",
+      "displayName": "Foundation Model — Llama 3.3 70B"
+    },
+    "_doc_multi_genie_spaces": "MULTI-GENIE CONNECTOR PATTERN — to expose several Databricks Genie spaces as separate selectable connectors, add ONE profile per space (each with its own spaceId; reuse the same host+token when they live in the same workspace). The connector picker lists every profile from /assistant/profiles automatically, and a supervisor-local profile with empty spaces:[] auto-fans-out across all of them. Example set (mirrors the sister Pulse project): { customer, sales, operations, hse } each { type:'genie', host, token, spaceId, displayName, dataDomain }. See docs/CONNECTOR_REQUIREMENTS.md §1.",
+    "sales": {
+      "host": "https://adb-ANOTHER_WORKSPACE.REGION.azuredatabricks.net",
+      "token": "dapi_ANOTHER_TOKEN",
+      "spaceId": "SALES_SPACE_ID",
+      "warehouseId": "",
+      "displayName": "Sales helper",
+      "dataDomain": "sales data",
+      "suggestedQuestions": [
+        "What were the top 3 categories by profit margin last quarter?",
+        "Which region declined most in revenue year-over-year?",
+        "Show me top 5 customers by total revenue."
+      ],
+      "schemaContext": {
+        "domain": "Sales, profit, margin, category, product, customer, and regional performance",
+        "grain": "order line-item",
+        "salesColumn": "sales",
+        "profitColumn": "profit",
+        "keyColumns": [
+          "order_id",
+          "order_date",
+          "region",
+          "segment",
+          "category",
+          "sales",
+          "profit",
+          "quantity",
+          "discount"
+        ]
+      },
+      "syntheticIndicators": {
+        "columns": [],
+        "message": "Some figures shown are synthetic estimates derived from patterns in the data, not recorded measurements."
+      },
+      "lakeviewDashboardId": "LAKEVIEW_DASHBOARD_ID"
+    },
+    "supervisor": {
+      "type": "supervisor-local",
+      "agentName": "PulsePlay Supervisor",
+      "synthesisEndpoint": "databricks-meta-llama-3.1-405b-instruct",
+      "spaces": [],
+      "crossDomainNotes": [
+        "Optional free-form notes the supervisor passes to its synthesis prompt to help it reconcile data from multiple sources. Example: 'Numbers from the operations source are monthly aggregates rounded to 2 decimals, while the order source is line-level — small variances under 1% are normal.'"
+      ]
+    },
+    "_supervisor_real_example": {
+      "_doc": "ALTERNATIVE: type='supervisor' points the proxy at a real Databricks Mosaic AI Supervisor Agent serving endpoint (built using databricks-agents/supervisor/). The agent owns routing + synthesis, so spaces[]/synthesisEndpoint are not used. See databricks-agents/supervisor/README.md for how to build and deploy one.",
+      "type": "supervisor",
+      "host": "https://dbc-...cloud.databricks.com",
+      "endpoint": "/serving-endpoints/pulseplay-supervisor-agent/invocations",
+      "agentName": "PulsePlay Supervisor Agent",
+      "token": "<PAT or service-principal token with CAN_USE on the endpoint>",
+      "displayName": "PulsePlay Supervisor Agent",
+      "dataDomain": "all helper data"
+    },
+    "_powerbi_semantic_model_example": {
+      "_doc": "Cycle 15 — Power BI semantic-model AI brain. Deterministic, no-LLM. PulsePlay probes the published dataset via INFO.* DAX functions, then matches each user question to one of four DAX templates (top-n, aggregate-by, trend, total) and executes it through POST .../datasets/{id}/executeQueries. Setup: (1) create an Azure AD app registration + client secret. (2) Add the service principal to the target Power BI workspace as a Member. (3) Enable 'Service principals can use Power BI APIs' in the Power BI admin portal. (4) Fill the fields below.",
+      "type": "powerbi-semantic-model",
+      "displayName": "Power BI: Sales Semantic Model",
+      "dataDomain": "Sales performance",
+      "aadTenantId": "YOUR_AAD_TENANT_GUID",
+      "aadClientId": "YOUR_SERVICE_PRINCIPAL_CLIENT_ID",
+      "aadClientSecret": "YOUR_SERVICE_PRINCIPAL_CLIENT_SECRET",
+      "powerbiGroupId": "YOUR_POWERBI_WORKSPACE_GUID",
+      "powerbiDatasetId": "YOUR_POWERBI_DATASET_GUID"
+    },
+    "_doc_displayName": "Optional. Friendly label shown in the visual's progress text and source attributions (e.g. 'Sales helper'). If omitted, falls back to a title-cased profile key.",
+    "_doc_dataDomain": "Optional. Short noun phrase for what this helper covers (e.g. 'sales data', 'customer & returns data'). Used in step text like 'Sales helper is checking sales data'. If omitted, falls back to 'the data'.",
+    "_doc_suggestedQuestions": "Optional. Per-profile starter questions surfaced as clickable chips on the visual's Welcome / Try-Asking strip (IDEA-006). Up to 8 strings. When present, replaces the generic static suggestions for this profile. Via env var: PROXY_PROFILE_<NAME>_SUGGESTED_QUESTIONS=comma,separated,list.",
+    "_doc_schemaContext": "Optional. Per-profile schema metadata fed to the supervisor's synthesis LLM so it knows each source's columns, grain, and metric naming. Without this, the supervisor still works but won't be able to flag cross-source metric mismatches. Fields: { domain (string), grain (string), salesColumn (string), profitColumn (string), keyColumns (string[]) }.",
+    "_doc_syntheticIndicators": "Optional. Per-profile list of column names whose values are derived/estimated rather than measured (e.g. churn-risk scores, predicted ratings). When the AI returns a result containing any of these columns, the confidence chip surfaces a 'synthetic data' caveat using the supplied message. Fields: { columns (string[]), message (string, optional) }.",
+    "_doc_supervisor_spaces": "Optional. List of profile names the supervisor fans out to. Leave empty/omit to default to every configured non-supervisor profile — supports any naming.",
+    "_doc_supervisor_crossDomainNotes": "Optional. Free-form notes (string or array) appended to the synthesis prompt to help the LLM reconcile cross-source numbers. Replaces any baked-in defaults — leave unset to use the bundled demo's ops-vs-orders note (only fires when profiles named 'ops' and any other are both present).",
+    "_doc_envProfiles": "IDEA-016 phase 2 — profiles can ALSO be layered via environment variables using the convention PROXY_PROFILE_<NAME>_<FIELD> (e.g. PROXY_PROFILE_SALES_HOST, PROXY_PROFILE_SALES_TOKEN, PROXY_PROFILE_SALES_SPACE_ID, PROXY_PROFILE_SALES_DISPLAY_NAME). Env vars MERGE per-field with config.json profiles of the same name (env wins) and append new profiles that don't exist in config.json. Useful for containerised / Databricks Apps deployments where committing config.json isn't possible. Field map: HOST, TOKEN, SPACE_ID, WAREHOUSE_ID, PROXY_KEY, DISPLAY_NAME, DATA_DOMAIN, AGENT_NAME, SYNTHESIS_ENDPOINT, SPACES (comma-separated), TYPE, FOUNDATION_MODEL_ENDPOINT, POWER_BI_CLIENT_ID, POWER_BI_CLIENT_SECRET, POWER_BI_TENANT_ID, POWER_BI_ALLOW_EDIT, POWER_BI_RLS_ENABLED, POWER_BI_RLS_REQUIRED, POWER_BI_RLS_USERNAME, POWER_BI_RLS_USERNAME_CLAIM, POWER_BI_RLS_ROLES (comma-separated).",
+    "_doc_powerBiEmbedToken": "Cycle A — POST /assistant/embed-token/powerbi mints short-lived Power BI embed tokens via Azure AD service principal (client_credentials grant). Add powerBiClientId / powerBiClientSecret / powerBiTenantId to a profile to enable. Tokens are cached per (profile, workspace, reportId, datasetId, accessLevel, RLS identity hash) with TTL = expiry minus 60s buffer; concurrent requests for the same non-secret key share a single AAD round-trip via single-flight protection. Browser-supplied identities/effectiveIdentity payloads are rejected. Optional RLS identities are derived server-side from verified IdP claims (default claim order: email, preferredUsername, upn) or from a server-configured powerBiRlsUsername. Edit tokens require powerBiAllowEdit=true on the profile. The client secret is NEVER returned to the browser, written to the audit log, or used as part of the cache key. Each issuance produces an audit entry stamped with the service principal's identity hash.",
+    "_doc_lakeviewDashboardId": "Optional, Genie/Databricks profiles. A Lakeview (AI/BI) dashboard id from the SAME workspace as this profile. When set, /assistant/profiles surfaces it (with the workspace host) and a fresh browser seeds the Dashboard surface to render it NATIVELY via the proxy - the all-Databricks pair. The browser never holds a workspace token; spec fetch + dataset runs go through this profile server-side."
+  }
 }

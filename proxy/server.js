@@ -3329,6 +3329,12 @@ app.get('/assistant/profiles', (req, res) => {
             // open the right report without a human configuring each one.
             powerbiGroupId: profile.powerbiGroupId ? String(profile.powerbiGroupId) : undefined,
             powerbiReportId: profile.powerbiReportId ? String(profile.powerbiReportId) : undefined,
+            // Lakeview dashboard target for the all-Databricks pair — same
+            // routing-metadata rationale as the Power BI ids above. The
+            // workspace host rides along so the frontend can build the adapter
+            // config without guessing which profile's host to use.
+            lakeviewDashboardId: profile.lakeviewDashboardId ? String(profile.lakeviewDashboardId) : undefined,
+            workspaceUrl: profile.lakeviewDashboardId && host ? `https://${host}` : undefined,
         };
     });
     res.json(profiles);

@@ -200,12 +200,21 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
     // panel via `key` — a different persona is a different cache scope, and the
     // refetch is explicit user intent.
     const [persona, setPersona] = useState<string>(() => readDemoPersona());
+    // What the SERVER resolved — the demo switch is only a hint, and the server
+    // ignores it when demo switching is off or an IdP role is bound (SEC-01).
+    // The switcher's pressed state and the avatar follow THIS, never the local
+    // request; anything else shows authority the caller doesn't have.
+    const [resolved, setResolved] = useState<{ persona: string; source: string } | null>(null);
     const choosePersona = (p: string) => {
         try { window.localStorage.setItem("pulseplay:ai-demo-persona", p); } catch { /* private mode */ }
         setPersona(p);
         setStatus("loading");
         setPrompts([]);
     };
+    const shownPersona = resolved?.persona || "";
+    // The user asked for a persona the server did not grant → say so instead
+    // of silently snapping the buttons back.
+    const personaIgnored = !!(persona && resolved && resolved.persona !== persona);
     // Cockpit mode = a single interface, everything on one plate, with NO
     // cross-screen navigation. Combined mode = the cockpit PLUS the screen nav.
     const showNav = mode === "combined";
@@ -303,11 +312,18 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
                                 <button
                                     key={p}
                                     type="button"
-                                    className={`dcc-personabtn${persona === p ? " is-on" : ""}`}
-                                    aria-pressed={persona === p}
+                                    // Pressed state = the persona the SERVER resolved,
+                                    // never the local request (SEC-01).
+                                    className={`dcc-personabtn${shownPersona === p ? " is-on" : ""}`}
+                                    aria-pressed={shownPersona === p}
                                     onClick={() => choosePersona(p)}
                                 >{p.replace("Supply Chain ", "")}</button>
                             ))}
+                            {personaIgnored && (
+                                <div className="dcc-personapick-note" role="status">
+                                    Your role is set by the server, so this switch is off here.
+                                </div>
+                            )}
                         </div>
                     )}
                     <div className="dcc-gov-card">
@@ -334,11 +350,11 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
                         <span className="dcc-chip dcc-chip--gov" title="Every number here is measured from your data and every action checks your permissions first."><ShieldCheck size={13} strokeWidth={1.8} aria-hidden /> Checked</span>
                         <button type="button" className="dcc-iconbtn" aria-label="Notifications"><Bell size={16} strokeWidth={1.8} aria-hidden /></button>
                         <div className="dcc-persona">
-                            <span className="dcc-persona-avatar">{initialsOf(persona)}</span>
+                            <span className="dcc-persona-avatar">{initialsOf(shownPersona)}</span>
                             {!narrow && (
                                 <span className="dcc-persona-name">
-                                    <b>{persona || "Pick who you are"}</b>
-                                    <span>{persona ? "your role" : "no role set yet"}</span>
+                                    <b>{shownPersona || "Checking who you are…"}</b>
+                                    <span>{resolved ? (resolved.source === "demo" ? "demo role" : "your role") : ""}</span>
                                 </span>
                             )}
                         </div>
@@ -470,7 +486,7 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
                                 </span>
                             )}
                         </div>
-                        <ActionInsightsPanel key={persona || "none"} proxyBase={proxyBase} assistantProfile={activeProfile} onData={setPrompts} onStatus={setStatus} hideHeader view={view} />
+                        <ActionInsightsPanel key={persona || "none"} proxyBase={proxyBase} assistantProfile={activeProfile} onData={setPrompts} onStatus={setStatus} onResolvedPersona={setResolved} hideHeader view={view} />
                     </div>
 
                     {/* Since You Last Visited + My Canvas */}

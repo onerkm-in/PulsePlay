@@ -34,6 +34,9 @@ export interface ProfileMeta {
     type?: string;
     powerbiGroupId?: string;
     powerbiReportId?: string;
+    /** All-Databricks pair (see embedConfigStore.DeploymentEmbedTarget). */
+    lakeviewDashboardId?: string;
+    workspaceUrl?: string;
 }
 
 export interface SyncResult {
@@ -67,13 +70,37 @@ export function pickDefaultProfile(profiles: ProfileMeta[]): string | null {
     if (!profiles.length) return null;
     const named = profiles.find(p => p.name === "default");
     if (named) return named.name;
+    // Genie before other conversational types: a Genie profile carries a SQL
+    // warehouse, which three of the four surfaces need (Decisions' prompt
+    // store, Ask Pulse's NL→SQL, grounded briefings). A foundation-model
+    // profile listed first used to win here, landing a fresh browser on a
+    // brain whose Decisions surface can only apologise.
+    // Among genie profiles, the one that also declares a Lakeview dashboard is
+    // the deployment's marked showcase — the coherent 4-surface pair.
+    const genie = profiles.find(p => p.type === "genie" && p.lakeviewDashboardId)
+        || profiles.find(p => p.type === "genie");
+    if (genie) return genie.name;
     const conversational = profiles.find(p => p.type !== "powerbi-semantic-model");
     return (conversational || profiles[0]).name;
 }
 
-/** The profile that declares a Power BI report, if any. */
-export function pickEmbedTarget(profiles: ProfileMeta[]): ProfileMeta | null {
-    return profiles.find(p => p.powerbiReportId) || null;
+/** The profile that declares a Dashboard target, if any.
+ *
+ *  Preference order:
+ *   1. the ACTIVE profile's own Lakeview dashboard — the all-Databricks pair,
+ *      and the only choice guaranteed coherent with what the AI answers from
+ *      (same workspace, same star schema);
+ *   2. any profile's Lakeview dashboard;
+ *   3. any profile's Power BI report (needs SP creds server-side to embed).
+ */
+export function pickEmbedTarget(profiles: ProfileMeta[], activeProfile?: string): ProfileMeta | null {
+    const active = activeProfile
+        ? profiles.find(p => p.name === activeProfile && p.lakeviewDashboardId)
+        : null;
+    return active
+        || profiles.find(p => p.lakeviewDashboardId)
+        || profiles.find(p => p.powerbiReportId)
+        || null;
 }
 
 /**
@@ -154,7 +181,10 @@ export async function syncDeploymentDefaults(): Promise<SyncResult> {
         }
     }
 
-    const target = pickEmbedTarget(profiles);
+    // Pass the profile the browser will actually use, so its own Lakeview
+    // declaration (the coherent all-Databricks pair) wins over another
+    // profile's Power BI report.
+    const target = pickEmbedTarget(profiles, readStoredProfile() || result.seededProfile || undefined);
     _deploymentTarget = target;
     if (target) {
         result.seededEmbed = seedEmbedConfigFromDeployment(target);

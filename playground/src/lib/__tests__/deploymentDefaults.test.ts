@@ -56,6 +56,43 @@ describe("pickEmbedTarget", () => {
     it("returns null when no deployment declares one", () => {
         expect(pickEmbedTarget([{ name: "default", type: "genie" }])).toBeNull();
     });
+
+    // The all-Databricks pair: a Lakeview declaration wins over a Power BI
+    // report, and the ACTIVE profile's own declaration wins over another
+    // profile's — the only choice guaranteed coherent with what the AI
+    // answers from.
+    const WITH_LAKEVIEW = [
+        ...HOSTED_PROFILES,
+        { name: "scm", type: "genie", lakeviewDashboardId: "lv-scm", workspaceUrl: "https://ws" },
+        { name: "other", type: "genie", lakeviewDashboardId: "lv-other", workspaceUrl: "https://ws" },
+    ];
+    it("prefers the active profile's own Lakeview dashboard", () => {
+        expect(pickEmbedTarget(WITH_LAKEVIEW, "other")?.lakeviewDashboardId).toBe("lv-other");
+    });
+    it("prefers any Lakeview dashboard over a Power BI report", () => {
+        expect(pickEmbedTarget(WITH_LAKEVIEW)?.lakeviewDashboardId).toBe("lv-scm");
+        expect(pickEmbedTarget(WITH_LAKEVIEW, "foundation")?.lakeviewDashboardId).toBe("lv-scm");
+    });
+});
+
+describe("pickDefaultProfile prefers a warehouse-backed brain", () => {
+    it("picks genie over a foundation-model profile listed first", () => {
+        // This exact ordering landed a fresh browser on `foundation`, whose
+        // Decisions surface can only apologise (no SQL warehouse).
+        const listed = [
+            { name: "foundation", type: "foundation-model" },
+            { name: "genie-scm-poc", type: "genie" },
+        ];
+        expect(pickDefaultProfile(listed)).toBe("genie-scm-poc");
+    });
+
+    it("among genie profiles, prefers the one that declares the deployment's dashboard", () => {
+        const listed = [
+            { name: "genie", type: "genie" },
+            { name: "genie-scm-poc", type: "genie", lakeviewDashboardId: "lv-1" },
+        ];
+        expect(pickDefaultProfile(listed)).toBe("genie-scm-poc");
+    });
 });
 
 describe("describeEmbedCoherence", () => {

@@ -104,6 +104,14 @@ export interface DeploymentEmbedTarget {
     powerbiGroupId?: string;
     powerbiReportId?: string;
     powerbiDatasetId?: string;
+    /** All-Databricks pair: a Lakeview dashboard declared by a Databricks
+     *  profile. Rendered NATIVELY through the proxy (spec + datasets run
+     *  server-side under the profile's token; the browser never holds one). */
+    lakeviewDashboardId?: string;
+    workspaceUrl?: string;
+    /** The declaring profile's name — the native renderer needs it to route
+     *  dataset execution through the right server-side profile. */
+    name?: string;
 }
 
 /**
@@ -120,9 +128,26 @@ export interface DeploymentEmbedTarget {
  * author who chose a different report keeps it. Returns true if it seeded.
  */
 export function seedEmbedConfigFromDeployment(target: DeploymentEmbedTarget | null | undefined): boolean {
-    if (!target?.powerbiReportId) return false;
+    if (!target?.powerbiReportId && !target?.lakeviewDashboardId) return false;
     const current = getEmbedConfig();
     if (current && Object.keys(current).length > 0) return false;
+
+    // All-Databricks pair first: a Lakeview declaration means the deployment
+    // wants the Dashboard rendered natively from the same workspace the AI
+    // answers from. assistantProfile + dashboardId is exactly what the
+    // databricks-aibi adapter requires to pick its native path — without the
+    // profile it silently falls back to an iframe embed that CSP blocks.
+    if (target.lakeviewDashboardId) {
+        const seeded: Record<string, unknown> = {
+            dashboardId: target.lakeviewDashboardId,
+        };
+        if (target.workspaceUrl) seeded.workspaceUrl = target.workspaceUrl;
+        if (target.name) seeded.assistantProfile = target.name;
+        setEmbedConfig(seeded as BIEmbedConfig);
+        seedBiVendor("databricks-aibi");
+        return true;
+    }
+
     // Field names follow PowerBIEmbedConfig: `id` is the REPORT id, not
     // `reportId` (bi-adapters/powerbi/index.ts). Only the target is seeded -
     // embedUrl and accessToken still come from the server-side token mint, so
@@ -132,6 +157,17 @@ export function seedEmbedConfigFromDeployment(target: DeploymentEmbedTarget | nu
     if (target.powerbiDatasetId) seeded.datasetId = target.powerbiDatasetId;
     setEmbedConfig(seeded as BIEmbedConfig);
     return true;
+}
+
+/** Seed the BI vendor to match a seeded embed target — same non-destructive
+ *  rule: only when this browser has not picked a vendor of its own. */
+function seedBiVendor(vendor: string): void {
+    if (typeof window === "undefined") return;
+    try {
+        if (window.localStorage.getItem("pulseplay:bi-vendor")) return;
+        window.localStorage.setItem("pulseplay:bi-vendor", vendor);
+        window.dispatchEvent(new CustomEvent("pulseplay:bi-vendor-change", { detail: { vendor } }));
+    } catch { /* swallow */ }
 }
 
 /** React hook — returns the current embed config + a stable setter +

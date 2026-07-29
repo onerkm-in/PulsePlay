@@ -895,7 +895,17 @@ function PlaygroundApp(): React.ReactElement {
     }, [focusedPane]);
 
     useEffect(() => {
-        try { window.localStorage.setItem(BI_VENDOR_STORAGE_KEY, activeVendor); } catch { /* swallow */ }
+        try {
+            // A fresh browser's implicit "powerbi" fallback is NOT a choice.
+            // Persisting it on first mount made every new browser look like it
+            // had picked Power BI before syncDeploymentDefaults could seed the
+            // deployment's own Dashboard target (seeding never overrides a
+            // stored vendor — correctly). Persist only once a real value is
+            // stored or the vendor moved off the fallback.
+            const stored = window.localStorage.getItem(BI_VENDOR_STORAGE_KEY);
+            if (stored === null && activeVendor === "powerbi") return;
+            window.localStorage.setItem(BI_VENDOR_STORAGE_KEY, activeVendor);
+        } catch { /* swallow */ }
     }, [activeVendor]);
 
     useEffect(() => {

@@ -330,3 +330,12 @@ button.dcc-sevbar-row.is-picked {
   cursor: pointer; font-size: 11px; padding: 3px 10px;
 }
 .dcc-viewchip:hover { background: var(--color-accent-200, #d6ebff); }
+
+/* Shown when the user picked a persona the server did not grant — the honest
+   alternative to silently snapping the buttons back. */
+.dcc-personapick-note {
+  flex: 1 0 100%;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--color-neutral-600, #6c6c70);
+}

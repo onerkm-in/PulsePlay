@@ -88,7 +88,7 @@ export function decisionMatchesView(p: DecisionPrompt, view?: DecisionViewFilter
     return true;
 }
 
-export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, onStatus, hideHeader, view }: {
+export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, onStatus, hideHeader, view, onResolvedPersona }: {
     proxyBase: string;
     assistantProfile?: string;
     /** Reports the loaded prompt set to a parent (e.g. the cockpit shell derives
@@ -106,6 +106,11 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, onSta
     /** Display filter from the cockpit's interactive summary (see
      *  DecisionViewFilter). Never affects fetching or the onData payload. */
     view?: DecisionViewFilter | null;
+    /** Reports the persona the SERVER resolved (with its source). The demo
+     *  switch is a hint the server may ignore (SEC-01: IdP roles win, and demo
+     *  switching needs an explicit opt-in) — any switcher UI must reflect this
+     *  resolution, not the request, or it claims authority the caller lacks. */
+    onResolvedPersona?: (info: { persona: string; source: string }) => void;
 }) {
     const [data, setData] = useState<ApiResponse | null>(null);
     const [fetchedAt, setFetchedAt] = useState<number | null>(null);
@@ -128,6 +133,8 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, onSta
     onDataRef.current = onData;
     const onStatusRef = useRef(onStatus);
     onStatusRef.current = onStatus;
+    const onResolvedPersonaRef = useRef(onResolvedPersona);
+    onResolvedPersonaRef.current = onResolvedPersona;
 
     const load = useCallback(async (personaOverride?: string) => {
         const persona = personaOverride ?? demoPersona;
@@ -145,6 +152,7 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, onSta
             setFetchedAt(now);
             writePromptCache({ key: `${base}|${assistantProfile || ""}|${persona}`, fetchedAt: now, body });
             onDataRef.current?.(body.prompts || []);
+            onResolvedPersonaRef.current?.({ persona: body.persona, source: body.personaSource });
             onStatusRef.current?.("ready");
         } catch (e) {
             setError(String((e as Error).message || e));
@@ -182,6 +190,7 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, onSta
             setData(hit.body);
             setFetchedAt(hit.fetchedAt);
             onDataRef.current?.(hit.body.prompts || []);
+            onResolvedPersonaRef.current?.({ persona: hit.body.persona, source: hit.body.personaSource });
             onStatusRef.current?.("ready");
             return;
         }
