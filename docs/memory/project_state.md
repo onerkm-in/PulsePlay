@@ -5,6 +5,32 @@ type: project
 originSessionId: current
 ---
 
+**Current state - 2026-07-29 evening (beast-mode pass; all 5 UIs live-verified):**
+Branch `design/nav-consistency` at `0f03a27` (+ docs). **All green:** playground
+**1998/1998** (156 files), proxy **1528/1528**, tsc + build clean.
+
+- **SCM Lakeview dashboard created** (`01f18b1911851e9eb75f3c0bd8fb0120`,
+  "PulsePlay SCM — Supply Chain KPIs") over
+  `main.supply_chain.fact_supply_chain_kpi_monthly` — the same fact the
+  decision rules and Genie use; the Dashboard tab no longer shows the dbdemos
+  support demo. config.json (gitignored) points `genie-scm-poc.lakeviewDashboardId`
+  at it. Mapper tripwires: no dual-y arrays (one widget per series); field
+  `expression` must be `` `col` ``.
+- **Out-of-box works from a WIPED browser**: seeding prefers genie-with-dashboard,
+  seeds vendor + embed + genieSettings; App no longer persists its implicit
+  "powerbi" vendor fallback as if chosen.
+- **Barlow is self-hosted** (production CSP silently blocked Google Fonts in
+  every deployed build — dev-only typeface until now).
+- **Interactive cockpit**: KPI tiles act (scroll+filter), severity bars/donut
+  filter, open-only default list; three design-expert agents (fidelity /
+  comprehension / WCAG-computed) reviewed live captures; verified findings
+  fixed in `0f03a27`.
+- **Local proxy runs with `AI_ALLOW_DEMO_PERSONA=true`** — persona switch is
+  server-truthful in the UI (pressed state follows the SERVER's resolution).
+- Open + owned: AGENDA `DEC-UNITS` (Roman-scale K/M contradiction — USER
+  decision), `SHELL-UNIFY`, `DASH-POLISH`, `DEC-SPARK`, `DEC-AGENT`,
+  `MCP-CONNECTOR`.
+
 **Current state - 2026-07-29 (cockpit is the default; Decisions auto-loads):**
 Branch `design/nav-consistency` at `fc57c72`. **All green:** playground
 **1984/1984** (154 files), proxy **1528/1528** (85 suites), tsc + production

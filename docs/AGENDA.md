@@ -8,6 +8,37 @@
 
 Ordered by impact × cost. Each item is independently shippable.
 
+- [ ] **DEC-UNITS — number-notation decision (USER OWNS THIS)** — the Executive
+  Brief (model text) says "854.42 K tCO2e" while the KPI Snapshot (our
+  deterministic formatter) says "854.42 M" for the SAME number: the model
+  ignores the project's Roman-scale convention (M=thousand, MN=million, B)
+  while `metricFrame.formatMagnitude` enforces it. To any normal reader M =
+  million → a 1000× apparent contradiction on one screen (both design experts
+  flagged it independently). Options: (a) normalize model-authored suffixes to
+  Roman at render; (b) drop Roman for conventional K/MN/B everywhere. Also add
+  direction-of-goodness metadata (GHG DOWN is good) so the narrator stops
+  framing an emissions decline as the exception to improvement. Do not change
+  either panel unilaterally — the Roman convention was the user's own fix from
+  the 2026-07-28 MN/B defect cycle.
+
+- [ ] **SHELL-UNIFY — one shell, one brand mark** — the cockpit (sidebar,
+  grid mark, persona) and the four sub-screens (white tab bar, dark "P." mark,
+  viewport-control icon strip) are two different products visually; the
+  experts' top fidelity finding. Render the sub-screens inside the cockpit
+  shell chrome. Large refactor of PlaygroundApp hosting — plan first.
+
+- [ ] **DASH-POLISH — SCM dashboard follow-ups** — humanize Lakeview counter
+  sub-labels (raw snake_case column names render under each big number);
+  minimum-contrast clamp for spec-authored series colours before handing to
+  ECharts; a real Overview trend card once decision timestamps provide a
+  series (ties DEC-SPARK). The SCM dashboard itself
+  (`01f18b1911851e9eb75f3c0bd8fb0120`, created 2026-07-29) lives in the
+  workspace; scratchpad scripts were throwaway — recreate from the HANDOVER
+  notes if it needs regenerating.
+
+- [x] **COST-P2 — duplicate allowlist fetch CLOSED (`0f03a27`)** — one request
+  per boot via a shared loader with a 5s boot-window TTL; verified live.
+
 - [ ] **DEC-SPARK — decision cards have no trend to draw** — the "add sparklines"
   ask is blocked on data, not rendering. A prompt row carries `month_key` (a
   single point), `kpi`, `category`, `region` — no series. Drawing a sparkline

@@ -5,6 +5,27 @@
 
 ---
 
+## 2026-07-29 (latest+35) — beast-mode pass: expert-reviewed UIs, SCM dashboard created, out-of-box works from a wiped browser
+
+Commits `88bf4d7` (self-hosted fonts) · `a00a8bf` (interactive summary) · `81fa806` (out-of-box seeding) · `0f03a27` (expert-review batch). Playground **1,998/1,998** (156 files), proxy **1,528/1,528**, tsc + build clean. All five UIs exercised LIVE end to end: Manager approve flowed to `actioned`, one staged briefing generated (grounded SCM numbers), one Genie ask answered (Peru, OTIF +1.1pp, table + chart), the new SCM dashboard filled natively.
+
+**The Dashboard now shows OUR data.** The only Lakeview dashboard in the workspace was the dbdemos customer-support demo — a supply-chain cockpit whose Dashboard tab showed help-desk tickets (user: "the KPIs should be our genie or underlying metric table KPIs only"). Created **"PulsePlay SCM — Supply Chain KPIs"** (`01f18b1911851e9eb75f3c0bd8fb0120`) over `main.supply_chain.fact_supply_chain_kpi_monthly` — the SAME fact the decision rules scan and Genie answers about: 5 counters (true weighted OTIF; averages labelled "(avg)"), OTIF + Forecast Accuracy by month, OTIF by region, backorders by category, a detail table. Tripwires learned: our native mapper (correctly) REFUSES a `y: [array]` dual-series encoding — use one widget per series; and dataset field `expression` must be `` `col` `` — an empty expression renders nothing.
+
+**Out-of-box from a truly wiped browser now lands working**: profiles can declare `lakeviewDashboardId` (documented in config.example.json); seeding prefers genie-with-dashboard for the AI axis, the active profile's Lakeview for the BI axis, seeds vendor + genieSettings (the Pulse `isConfigured` gate — profile key alone left AI Insights on "Connect an AI assistant"). Root-caused: App persisted its implicit `"powerbi"` vendor fallback on first mount, making every fresh browser look like it had chosen PBI before seeding ran.
+
+**Self-hosted Barlow (`88bf4d7`).** The industry stylesheet @imported Google Fonts, but the production CSP is strict `style-src 'self'` — every DEPLOYED build silently blocked it and fell back to system fonts while dev showed Barlow. Five latin woff2 faces, ~110KB, OFL; console now clean.
+
+**Interactive Overview (`a00a8bf`).** KPI tiles are actions (visible "→" line), severity bars + donut legend toggle a display filter, active filter shows as a clear-chip. Pinned contract: filters change what is SHOWN, never what is fetched; tiles stay derived from the FULL set.
+
+**Three design experts (parallel agents: fidelity / comprehension / WCAG-computed) reviewed live captures; verified findings fixed in `0f03a27`** — see the commit body. Notables: severity fills got fill-grade tokens (text tokens are muddy at area size); the cockpit list defaults to open-only (done cards no longer sit under "Needs Your Decision"); card footers are plain language with audit tokens moved into View evidence; the answer card rendered markdown bold as literal `**` (parseBold added); persona UI is server-truthful (`AI_ALLOW_DEMO_PERSONA=true` now on the local proxy). COST-P2 closed: ONE allowlist fetch per boot, verified live.
+
+**Open, decision-owned or deferred (AGENDA):**
+- **DEC-UNITS (user decision needed):** Executive Brief says "854.42 K tCO2e", KPI Snapshot says "854.42 M" — the model ignores the project's Roman-scale convention (M=thousand) while our formatter enforces it. Same number, 1000× apparent disagreement. Either normalize model output to Roman at render, or drop Roman for K/MN/B. Also: GHG decline framed as the exception to improvement ("down is good" metadata missing).
+- **SHELL-UNIFY:** the cockpit and the four sub-screens are two different shells with two brand marks — the experts' top fidelity finding. Big refactor; not rushed.
+- **DASH-POLISH:** humanize Lakeview counter sub-labels (snake_case), min-contrast clamp for authored series colours, an Overview trend card once decision timestamps give a real series (ties DEC-SPARK).
+
+---
+
 ## 2026-07-29 (latest+34) — full headed walkthrough: 2 dead things killed, 1 gap closed, 1 own regression caught
 
 Commit `a9a5215`. Playground **1,984/1,984**, tsc + build clean. All five screens walked live at desktop + a true 390×844 emulated phone.
