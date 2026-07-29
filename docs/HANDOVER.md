@@ -5,6 +5,19 @@
 
 ---
 
+## 2026-07-29 (latest+37) — headed validation of all five UIs passed; personas explain themselves
+
+Commit `2805341`. Playground **1,998/1,998**, proxy **1,528/1,528**. Full headed pass from a WIPED browser, all live:
+**UI1** cockpit lands with `$10.62 M` (Roman), impacts `7.41 M units` / `21%` — no commas, no K; interactive tiles verified. **UI2** back-route + aligned toolbar + `90.17 M units` + "Done — the action was sent". **UI3** one live briefing: **zero K violations** — GHG reads `854.42 M` vs prior `1.29 MM` in the same panel (the space-instruction push worked; the 1000× contradiction is dead). **UI4** one live ask: bold renders as real `<strong>`, zero literal `**` ("**Uruguay (UY)**, 59.8%"). **UI5** SCM dashboard: Refresh round trip re-fills 30 cards, Edit deep link correct, no unmapped widgets. **390px**: labelled nav, SP avatar, zero overflow.
+
+**Personas are now server-declared AND self-explaining** (user: "who is a planner and who is the manager?"). `personaGate.describePersonaSwitch` → switchable flag + options with plain-language job descriptions; UIs render whatever the engine declares (plug-and-play: no hard-coded labels anywhere); block disappears under a real IdP login; cockpit shows the active role's description under "View as (demo)". The proposer-vs-approver story is the HITL separation of duties.
+
+**"Checked" chip is click-to-explain** (direct user question proved hover-only failed): measured from your data / permission-checked server-side / big actions need a person.
+
+**Card honesty:** a pending-approval card still ASKED its action question above its own "Sent for approval" line — contradiction (user screenshot). The ask renders only while actionable; else "Proposed — a decision is with the approver." Save menu no longer clipped (`.dpc` overflow:hidden removed; strip keeps corners via its own radii). `fmtImpact` speaks Roman ("$10.62 M", "90.17 M units").
+
+---
+
 ## 2026-07-29 (latest+36) — M/MM/B convention locked end to end; toolbar registration; dashboard authoring path
 
 Commit `0c7d293`. Playground **1,998/1,998**. DEC-UNITS resolved by user direction: Roman scale via GUIDANCE, never code normalization — `M`=thousand (K forbidden), `MM`=million (was MN), `B`=billion. Everything that emits or teaches numbers now agrees: `formatMagnitude`, the Lakeview counter formatter, cockpit `fmtUsd` (its "$10.6K" broke the convention on the home screen), `contextBuilder`'s model-facing numbers, the host-stub prompt lines, and — the piece that actually produced the "854.42 K" — the **Genie space instructions**, updated in `genie_space_config.py` and pushed live (now also carrying direction-of-goodness: GHG/LTIR/COGS declines are improvements). Pill grammar tolerates MN + MM so legacy strings render.
