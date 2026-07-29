@@ -179,6 +179,10 @@
      unfinished panel rather than an empty one. */
   align-items: start;
 }
+/* Grid children default to min-width:auto, so ONE nowrap line (a suggestion
+   headline) widened its whole card past the phone viewport - 532px cards on a
+   390px screen, found in regression. min-width:0 restores the ellipsis chain. */
+.dcc-two > * { min-width: 0; }
 .dcc-pad { padding: 20px 22px; }
 .dcc-list-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--color-divider); }
 .dcc-list-row:last-child { border-bottom: 0; }
