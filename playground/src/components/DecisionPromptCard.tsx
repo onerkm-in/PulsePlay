@@ -178,8 +178,18 @@ export function DecisionPromptCard({
         <div className={`dpc ${sev.sev}${terminal ? " dpc--terminal" : ""}`}>
             <span className="dpc__rail" aria-hidden />
             <div className="dpc__body">
-                <div className="dpc__chips">
+                {/* Severity reads as a tinted header strip rather than a coloured
+                    left edge. The strip carries the label, the metric it concerns
+                    and where it applies, so the top line answers "how bad, about
+                    what, and where" before any prose is read. */}
+                <div className="dpc__strip">
                     <span className="dpc__sevchip">{sev.label}</span>
+                    <span className="dpc__strip-kpi">{prompt.kpi}</span>
+                    {(prompt.region || prompt.category) && (
+                        <span className="dpc__strip-where">
+                            {[prompt.region, prompt.category].filter(Boolean).join(" · ")}
+                        </span>
+                    )}
                 </div>
                 <h3 className="dpc__headline">{prompt.headline}</h3>
 
