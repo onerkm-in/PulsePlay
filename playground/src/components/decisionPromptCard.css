@@ -44,16 +44,25 @@
   font-family: var(--font-heading); text-transform: uppercase;
 }
 
-.dpc__head { display: flex; justify-content: space-between; gap: var(--space-4); align-items: baseline; }
-.dpc__headline-col { min-width: 0; }
 .dpc__headline {
   font-family: var(--font-heading); font-weight: var(--font-heading-weight);
   font-size: 16.5px; line-height: 1.22; margin: 0;
 }
-.dpc__impact { text-align: right; flex: 0 0 auto; }
+
+/* The stake and the question, side by side (Canvas v4). The figure is what
+   makes the question worth answering, so they are one row, not two facts at
+   opposite ends of the card. */
+.dpc__ask {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-2);
+}
+.dpc__impact { flex: 0 0 auto; min-width: 116px; }
 .dpc__impact-value {
   font-family: var(--font-heading); font-weight: var(--font-heading-weight);
-  font-variant-numeric: tabular-nums; font-size: 22px; color: var(--sev-color, var(--color-accent));
+  font-variant-numeric: tabular-nums; font-size: 26px; line-height: 1.05;
+  color: var(--sev-color, var(--color-accent));
 }
 .dpc__impact-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--pp-text-subtle, #86868a); max-width: 170px; }
 .dpc__bar { height: 3px; margin-top: 5px; background: color-mix(in srgb, var(--pp-text, #1d1f20) 12%, transparent); border-radius: 2px; overflow: hidden; }
@@ -62,7 +71,14 @@
 .dpc__issue { font-size: 13px; line-height: 1.5; color: var(--pp-text-muted, #5d5d60); }
 .dpc__whyfix { font-size: 12px; line-height: 1.5; color: var(--pp-text-muted, #7a7a7d); }
 .dpc__whyfix strong { font-weight: 700; color: var(--sev-color, var(--color-accent)); }
-.dpc__question { font-size: 13.5px; font-weight: 600; margin-top: var(--space-1); }
+.dpc__question { font-size: 14px; font-weight: 600; line-height: 1.35; min-width: 0; }
+
+/* Narrow cards (phone, or the cockpit's decision column on a small screen)
+   stack the pair rather than squeezing the question into a sliver. */
+@media (max-width: 640px) {
+  .dpc__ask { flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+  .dpc__impact { min-width: 0; }
+}
 
 .dpc__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin-top: var(--space-1); }
 /* Direct children only — as a descendant selector this also hit buttons inside

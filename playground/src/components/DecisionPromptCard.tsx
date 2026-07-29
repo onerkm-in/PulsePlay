@@ -181,16 +181,7 @@ export function DecisionPromptCard({
                 <div className="dpc__chips">
                     <span className="dpc__sevchip">{sev.label}</span>
                 </div>
-                <div className="dpc__head">
-                    <div className="dpc__headline-col">
-                        <h3 className="dpc__headline">{prompt.headline}</h3>
-                    </div>
-                    <div className="dpc__impact">
-                        <div className="dpc__impact-value">{fmtImpact(prompt.business_impact_value, prompt.business_impact_unit)}</div>
-                        <div className="dpc__impact-label">{prompt.business_impact_label}</div>
-                        <div className="dpc__bar"><span className="dpc__bar-fill" style={{ width: `${impactPct}%` }} /></div>
-                    </div>
-                </div>
+                <h3 className="dpc__headline">{prompt.headline}</h3>
 
                 <div className="dpc__issue">{prompt.issue}</div>
 
@@ -199,7 +190,22 @@ export function DecisionPromptCard({
                     {"  ·  "}<strong>FIX</strong> {prompt.recommended_action}
                 </div>
 
-                <div className="dpc__question">{actionQuestion(prompt)}</div>
+                {/* The stake and the question belong side by side (Canvas v4): the
+                    number is what makes the question worth answering, and reading
+                    them together is the whole decision. Split across the card - the
+                    figure floating top-right, the question further down - they read
+                    as two unrelated facts. */}
+                <div className="dpc__ask">
+                    <div className="dpc__impact">
+                        <div className="dpc__impact-value">{fmtImpact(prompt.business_impact_value, prompt.business_impact_unit)}</div>
+                        <div className="dpc__impact-label">{prompt.business_impact_label}</div>
+                        <div className="dpc__bar" role="img"
+                            aria-label={`Relative size of this decision: ${impactPct}% of the largest open one`}>
+                            <span className="dpc__bar-fill" style={{ width: `${impactPct}%` }} />
+                        </div>
+                    </div>
+                    <div className="dpc__question">{actionQuestion(prompt)}</div>
+                </div>
 
                 {!terminal && (
                     <div className="dpc__actions">

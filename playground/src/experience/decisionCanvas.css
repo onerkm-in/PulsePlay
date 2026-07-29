@@ -29,6 +29,15 @@
   box-shadow: var(--shadow-sm);
   display: flex; flex-direction: column;
   padding: 20px 14px; gap: 24px;
+  /* The sidebar used to stretch to the DOCUMENT height, so `margin-top:auto` on
+     its footer pushed the status card to the bottom of a long scrolling page —
+     leaving a tall empty column beside the nav and hiding the footer until you
+     scrolled to the end. Pinning it to the viewport keeps nav and footer
+     together on screen and removes the void. */
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
 }
 .dcc-brand { display: flex; align-items: center; gap: 10px; padding: 0 6px; }
 .dcc-brand-mark {
@@ -67,7 +76,16 @@
   display: flex; align-items: center; gap: 16px;
   padding: 18px 28px; background: var(--color-surface, #fff); box-shadow: var(--shadow-sm);
 }
+.dcc-titlewrap { min-width: 0; }
 .dcc-title { font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: 22px; margin: 0; }
+/* Says what the screen is for, in one sentence, for a first-time reader. */
+.dcc-subtitle {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: var(--color-neutral-600, #6c6c70);
+}
+@media (max-width: 960px) { .dcc-subtitle { display: none; } }
 .dcc-topbar-right { margin-left: auto; display: flex; align-items: center; gap: 14px; }
 .dcc-chip {
   display: inline-flex; align-items: center; gap: 5px;
@@ -191,3 +209,52 @@
 .dc-cockpit--narrow .dcc-side-foot { display: none; }
 .dc-cockpit--narrow .dcc-charts,
 .dc-cockpit--narrow .dcc-two { grid-template-columns: 1fr; }
+
+/* Live backlog count on the Decisions nav item. Only rendered where the number
+   is measured — a badge on a screen we have not counted would be decoration. */
+.dcc-navbadge {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  background: var(--pp-bad, #c0392b);
+  color: #fff;
+}
+
+/* Persona control. The cockpit previously had no way to change persona at all,
+   so a manager could not reach their own approval queue. */
+.dcc-personapick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.dcc-personapick-label {
+  flex: 1 0 100%;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-neutral-600, #6c6c70);
+}
+.dcc-personabtn {
+  flex: 1 1 0;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 12px;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md, 6px);
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+}
+.dcc-personabtn:hover { border-color: var(--color-accent); }
+.dcc-personabtn.is-on {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #fff;
+  font-weight: 600;
+}

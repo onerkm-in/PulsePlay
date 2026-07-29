@@ -71,13 +71,18 @@ function ageLabel(fetchedAt: number): string {
     return h === 1 ? "1 hour ago" : `${h} hours ago`;
 }
 
-export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, hideHeader }: {
+export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, onStatus, hideHeader }: {
     proxyBase: string;
     assistantProfile?: string;
     /** Reports the loaded prompt set to a parent (e.g. the cockpit shell derives
      *  KPIs + the severity donut from the SAME fetch — no double-fetch, no
      *  fabricated numbers). */
     onData?: (prompts: DecisionPrompt[]) => void;
+    /** Reports fetch status to a parent shell. The cockpit needs this to avoid
+     *  claiming "you're all caught up" from an empty prompt list that simply
+     *  hasn't arrived yet — an empty list and an unfetched list look identical
+     *  from `onData` alone. */
+    onStatus?: (status: "loading" | "ready" | "error") => void;
     /** In the cockpit the persona/heading live in the shell chrome, so the panel
      *  renders just the decision list. */
     hideHeader?: boolean;
@@ -101,11 +106,14 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, hideH
     // identity would refire the hydration effect every parent render.
     const onDataRef = useRef(onData);
     onDataRef.current = onData;
+    const onStatusRef = useRef(onStatus);
+    onStatusRef.current = onStatus;
 
     const load = useCallback(async (personaOverride?: string) => {
         const persona = personaOverride ?? demoPersona;
         setLoading(true);
         setError(null);
+        onStatusRef.current?.("loading");
         try {
             const res = await fetch(`${base}/insights/action-insights${profileQuery}`, {
                 headers: { ...profileHeaders, ...(persona ? { "x-pp-persona": persona } : {}) },
@@ -117,9 +125,11 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, hideH
             setFetchedAt(now);
             writePromptCache({ key: `${base}|${assistantProfile || ""}|${persona}`, fetchedAt: now, body });
             onDataRef.current?.(body.prompts || []);
+            onStatusRef.current?.("ready");
         } catch (e) {
             setError(String((e as Error).message || e));
             setData(null);
+            onStatusRef.current?.("error");
         } finally {
             setLoading(false);
         }
@@ -152,11 +162,17 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, hideH
             setData(hit.body);
             setFetchedAt(hit.fetchedAt);
             onDataRef.current?.(hit.body.prompts || []);
+            onStatusRef.current?.("ready");
             return;
         }
         setData(null);
         setFetchedAt(null);
-        if (autoLoadedRef.current.has(key)) return;  // already tried this scope
+        if (autoLoadedRef.current.has(key)) {
+            // Nothing more will arrive for this scope — say so, or the shell
+            // waits forever on a "loading" that never resolves.
+            onStatusRef.current?.("ready");
+            return;
+        }
         autoLoadedRef.current.add(key);
         void load();
     }, [base, assistantProfile, demoPersona]); // eslint-disable-line react-hooks/exhaustive-deps -- `load` is recreated per scope; depending on it would re-fire this effect

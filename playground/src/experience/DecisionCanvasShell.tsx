@@ -67,7 +67,10 @@ function goToSurface(surface: string): void {
 // is NOT a SurfaceId, so using those left the AI Insights / Ask Pulse links
 // dead in combined mode. Labels match the segregated switcher exactly.
 const NAV: Array<{ id: string; label: string; Icon: typeof Clock; unified?: boolean }> = [
-    { id: "unified", label: "Unified Canvas", Icon: LayoutGrid, unified: true },
+    // This entry IS the cockpit you are already on. It was labelled "Unified
+    // Canvas" while the page title said "My Decision Canvas", which read like a
+    // separate, unbuilt destination. "Overview" says what it is.
+    { id: "unified", label: "Overview", Icon: LayoutGrid, unified: true },
     { id: "action-insights", label: "Decisions", Icon: Clock },
     { id: "ai-insights", label: "AI Insights", Icon: Sparkles },
     { id: "ask-pulse", label: "Ask Pulse", Icon: MessageCircle },
@@ -170,7 +173,23 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
     const activeProfile = readActiveProfile();
     const narrow = useIsNarrow();
     const [prompts, setPrompts] = useState<DecisionPrompt[]>([]);
-    const persona = readDemoPersona();
+    // Starts at "loading" because the decision store now auto-loads on arrival.
+    // Without this the derived cards read an empty list as "all caught up" and
+    // tell the user there is nothing to do while the fetch is still running.
+    const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+    const scanning = status === "loading";
+    // Persona is state, not a bare read: the cockpit had no way to change it at
+    // all (the segregated surface has a Planner/Manager switch), so a manager
+    // could not see their own approval queue. Switching remounts the decision
+    // panel via `key` — a different persona is a different cache scope, and the
+    // refetch is explicit user intent.
+    const [persona, setPersona] = useState<string>(() => readDemoPersona());
+    const choosePersona = (p: string) => {
+        try { window.localStorage.setItem("pulseplay:ai-demo-persona", p); } catch { /* private mode */ }
+        setPersona(p);
+        setStatus("loading");
+        setPrompts([]);
+    };
     // Cockpit mode = a single interface, everything on one plate, with NO
     // cross-screen navigation. Combined mode = the cockpit PLUS the screen nav.
     const showNav = mode === "combined";
@@ -226,15 +245,39 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
                         >
                             <Icon size={18} strokeWidth={1.8} aria-hidden />
                             <span className="dcc-navlabel">{label}</span>
+                            {/* A count only where one is real. Decisions is the sole
+                                screen whose backlog we have already measured on this
+                                page; badging the others would be decoration. */}
+                            {id === "action-insights" && !scanning && kpi.open > 0 && (
+                                <span className="dcc-navbadge" aria-label={`${kpi.open} waiting`}>{kpi.open}</span>
+                            )}
                         </button>
                     ))}
                 </nav>
                 )}
                 <div className="dcc-side-foot">
+                    {/* Fills what was dead space with the control the cockpit was
+                        missing outright. Server-side authorization is unchanged —
+                        this only sends a hint header, and is ignored once a real
+                        IdP role is bound. */}
+                    {!narrow && (
+                        <div className="dcc-personapick">
+                            <div className="dcc-personapick-label">I'm working as</div>
+                            {["Supply Chain Planner", "Supply Chain Manager"].map((p) => (
+                                <button
+                                    key={p}
+                                    type="button"
+                                    className={`dcc-personabtn${persona === p ? " is-on" : ""}`}
+                                    aria-pressed={persona === p}
+                                    onClick={() => choosePersona(p)}
+                                >{p.replace("Supply Chain ", "")}</button>
+                            ))}
+                        </div>
+                    )}
                     <div className="dcc-gov-card">
-                        <div className="dcc-gov-title">Governed &amp; Fresh</div>
+                        <div className="dcc-gov-title">Your data is live</div>
                         <div className="dcc-gov-meta">
-                            {activeProfile ? `Connector: ${activeProfile}` : "No connector selected"} · session-fresh
+                            {activeProfile ? `Reading from ${activeProfile}` : "No data source picked yet"} · loaded this visit
                         </div>
                     </div>
                 </div>
@@ -243,16 +286,23 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
             {/* ── Main ── */}
             <div className="dcc-main">
                 <div className="dcc-topbar">
-                    <h1 className="dcc-title">My Decision Canvas</h1>
+                    {/* A first-time reader should not have to infer what this screen
+                        is for. One plain sentence, no jargon, no acronyms. */}
+                    <div className="dcc-titlewrap">
+                        <h1 className="dcc-title">My Decision Canvas</h1>
+                        <p className="dcc-subtitle">
+                            Problems we found in your supply chain, and what you can do about each one.
+                        </p>
+                    </div>
                     <div className="dcc-topbar-right">
-                        <span className="dcc-chip dcc-chip--gov"><ShieldCheck size={13} strokeWidth={1.8} aria-hidden /> Governed</span>
+                        <span className="dcc-chip dcc-chip--gov" title="Every number here is measured from your data and every action checks your permissions first."><ShieldCheck size={13} strokeWidth={1.8} aria-hidden /> Checked</span>
                         <button type="button" className="dcc-iconbtn" aria-label="Notifications"><Bell size={16} strokeWidth={1.8} aria-hidden /></button>
                         <div className="dcc-persona">
                             <span className="dcc-persona-avatar">{initialsOf(persona)}</span>
                             {!narrow && (
                                 <span className="dcc-persona-name">
-                                    <b>{persona || "Verify persona"}</b>
-                                    <span>{persona ? "demo persona" : "no role bound"}</span>
+                                    <b>{persona || "Pick who you are"}</b>
+                                    <span>{persona ? "your role" : "no role set yet"}</span>
                                 </span>
                             )}
                         </div>
@@ -269,34 +319,34 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
                         <div className="dcc-kpi dcc-kpi--bad">
                             <div className="dcc-kpi-top">
                                 <span className="dcc-kpi-icon"><CircleDollarSign size={18} strokeWidth={1.8} aria-hidden /></span>
-                                <span className="dcc-kpi-chip">{kpi.usdCount} USD-valued</span>
+                                <span className="dcc-kpi-chip">{kpi.usdCount} priced in $</span>
                             </div>
-                            <div className="dcc-kpi-value">{kpi.impact > 0 ? fmtUsd(kpi.impact) : "n/a"}</div>
-                            <div className="dcc-kpi-label">Impact at risk (open)</div>
+                            <div className="dcc-kpi-value">{kpi.impact > 0 ? fmtUsd(kpi.impact) : "—"}</div>
+                            <div className="dcc-kpi-label">Money at risk if nobody acts</div>
                         </div>
                         <div className="dcc-kpi dcc-kpi--violet">
                             <div className="dcc-kpi-top">
                                 <span className="dcc-kpi-icon"><ListChecks size={18} strokeWidth={1.8} aria-hidden /></span>
-                                <span className="dcc-kpi-chip">{kpi.critical} critical</span>
+                                <span className="dcc-kpi-chip">{kpi.critical} most urgent</span>
                             </div>
-                            <div className="dcc-kpi-value">{kpi.open}</div>
-                            <div className="dcc-kpi-label">Open decisions</div>
+                            <div className="dcc-kpi-value">{scanning ? "—" : kpi.open}</div>
+                            <div className="dcc-kpi-label">Waiting for you to decide</div>
                         </div>
                         <div className="dcc-kpi dcc-kpi--warn">
                             <div className="dcc-kpi-top">
                                 <span className="dcc-kpi-icon"><Clock size={18} strokeWidth={1.8} aria-hidden /></span>
-                                <span className="dcc-kpi-chip">HITL-gated</span>
+                                <span className="dcc-kpi-chip">a person must say yes</span>
                             </div>
-                            <div className="dcc-kpi-value">{kpi.approvals}</div>
-                            <div className="dcc-kpi-label">Awaiting approval</div>
+                            <div className="dcc-kpi-value">{scanning ? "—" : kpi.approvals}</div>
+                            <div className="dcc-kpi-label">Need a manager's approval</div>
                         </div>
                         <div className="dcc-kpi dcc-kpi--good">
                             <div className="dcc-kpi-top">
                                 <span className="dcc-kpi-icon"><CheckCircle2 size={18} strokeWidth={1.8} aria-hidden /></span>
-                                <span className="dcc-kpi-chip">this session</span>
+                                <span className="dcc-kpi-chip">this visit</span>
                             </div>
-                            <div className="dcc-kpi-value">{kpi.resolved}</div>
-                            <div className="dcc-kpi-label">Resolved this session</div>
+                            <div className="dcc-kpi-value">{scanning ? "—" : kpi.resolved}</div>
+                            <div className="dcc-kpi-label">Already sorted by you</div>
                         </div>
                     </div>
 
@@ -306,8 +356,10 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
                     <div className="dcc-charts">
                         <div className="dcc-card dcc-pad">
                             <div className="dcc-chart-head">
-                                <h3 className="dcc-section-title">Open decisions by severity</h3>
-                                <span className="dcc-list-ts">measured · deterministic</span>
+                                <h3 className="dcc-section-title">How urgent are they?</h3>
+                                {/* Plain English, but the provenance claim is unchanged: these
+                                    counts are measured from the warehouse, not model output. */}
+                                <span className="dcc-list-ts">counted from your data · not AI</span>
                             </div>
                             {kpi.bySev.length ? (
                                 <div className="dcc-sevbars">
@@ -330,11 +382,15 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
                                     ))}
                                 </div>
                             ) : (
-                                <p className="dcc-empty">No open decisions right now. The governed queue is clear.</p>
+                                <p className="dcc-empty">
+                                    {scanning
+                                        ? "Checking your supply chain…"
+                                        : "Nothing needs your decision right now. You're all caught up."}
+                                </p>
                             )}
                         </div>
                         <div className="dcc-card dcc-pad">
-                            <h3 className="dcc-section-title" style={{ marginBottom: 8 }}>Open by severity</h3>
+                            <h3 className="dcc-section-title" style={{ marginBottom: 8 }}>The share of each</h3>
                             <SeverityDonut counts={kpi.counts} />
                         </div>
                     </div>
@@ -344,10 +400,10 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
                         <div className="dcc-decisions-head">
                             <h3 className="dcc-section-title" style={{ fontSize: 17 }}>Needs Your Decision</h3>
                             <span className="dcc-chip" style={{ background: "var(--pp-bad-soft)", color: "var(--pp-bad)", padding: "3px 10px", fontSize: 11 }}>
-                                {kpi.open} open · Governed · Tier-first ranking
+                                {kpi.open} to review · most urgent first
                             </span>
                         </div>
-                        <ActionInsightsPanel proxyBase={proxyBase} assistantProfile={activeProfile} onData={setPrompts} hideHeader />
+                        <ActionInsightsPanel key={persona || "none"} proxyBase={proxyBase} assistantProfile={activeProfile} onData={setPrompts} onStatus={setStatus} hideHeader />
                     </div>
 
                     {/* Since You Last Visited + My Canvas */}
