@@ -50,6 +50,11 @@ env:
   # to render it NATIVELY through this profile; no workspace token in the browser.
   - name: PROXY_PROFILE_DEFAULT_LAKEVIEW_DASHBOARD_ID
     value: "01f18b1911851e9eb75f3c0bd8fb0120"
+  # Decision-feed domain scope: the shared prompt store also holds prompts from
+  # other demo domains (e.g. customer-support SLA rules). This deployment is the
+  # supply-chain cockpit, so it shows only the SCM- rule family.
+  - name: PROXY_PROFILE_DEFAULT_DECISION_RULE_PREFIX
+    value: "SCM-"
 
   # Second Genie profile — Customer Support Review (the other live space).
   # Kept so the deployed app mirrors the local config.json (genie + genie-scm-poc).
