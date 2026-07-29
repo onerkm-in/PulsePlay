@@ -22,6 +22,7 @@
 'use strict';
 
 const personaGate = require('./personaGate');
+const agentic = require('./agenticInvestigate');
 const hitlGate = require('./hitlGate');
 const notifier = require('./decisionNotifier');
 const store = require('./decisionPromptStore');
@@ -205,12 +206,56 @@ function makeHealthHandler(deps) {
     };
 }
 
+/**
+ * Agentic investigation of one decision — READ ONLY.
+ *
+ * Deliberately a separate handler from the action POST: that one mutates
+ * governed state through the HITL gate, this one cannot mutate anything. Two
+ * different risk profiles should not share a route.
+ */
+function makeInvestigateHandler(deps) {
+    const { resolveProfile, auditLog, askGenie, databricksRequest, sendNoMatchingProfile } = deps;
+    return async (req, res) => {
+        // Same resolve signature as every other handler here — resolveProfile
+        // takes (body, query, headers, req) and returns null when nothing
+        // matches, which sendNoMatchingProfile turns into a proper envelope.
+        const resolved = resolveProfile(req.body, req.query, req.headers, req);
+        if (!resolved) return sendNoMatchingProfile(req, res);
+        const { persona, source } = resolvePersona(req);
+        const cap = caps(persona);
+        // Same gate as reading a prompt: if you cannot see evidence, you
+        // cannot commission an investigation of it.
+        if (!cap.has('can_view_evidence')) {
+            auditLog(req, { action: 'agentic.investigate', status: 403, detail: `persona=${persona}` });
+            return res.status(403).json({ ok: false, reason: 'forbidden', detail: 'Not permitted to investigate decisions.' });
+        }
+        let prompt;
+        try {
+            prompt = await store.loadPrompt(resolved.profile, databricksRequest, req.params.id);
+        } catch (err) {
+            return res.status(503).json({ ok: false, reason: 'store-unavailable', detail: String(err.message || err).slice(0, 160) });
+        }
+        if (!prompt) return res.status(404).json({ ok: false, reason: 'not-found', detail: 'No such decision.' });
+
+        const result = await agentic.investigate({
+            prompt,
+            profileName: resolved.name,
+            steps: req.body && req.body.steps,
+            deps: { askGenie, auditLog: (e) => auditLog(req, { ...e, profileName: resolved.name }) },
+        });
+        // A budget refusal is a normal outcome (429), not a server error.
+        const code = result.ok ? 200 : (result.reason === 'daily-cap' || result.reason === 'per-run-cap' ? 429 : 200);
+        return res.status(code).json({ ...result, persona, personaSource: source });
+    };
+}
+
 /** Mount the handlers on a given base path. Used by both the legacy route set
  *  and the /decision-assist drop-in connector so behavior can never diverge. */
 function mount(app, deps, basePaths) {
     app.get(basePaths.health, makeHealthHandler(deps));
     app.get(basePaths.list, makeListHandler(deps));
     app.post(basePaths.action, makeActionHandler(deps));
+    if (basePaths.investigate) app.post(basePaths.investigate, makeInvestigateHandler(deps));
 }
 
 // Legacy registration — keeps the /insights/action-insights routes the current UI calls.
@@ -219,12 +264,13 @@ function register(app, deps) {
         health: '/insights/action-insights/health',
         list: '/insights/action-insights',
         action: '/insights/action-insights/:id/action',
+        investigate: '/insights/action-insights/:id/investigate',
     });
 }
 
 module.exports = {
     register, mount,
-    makeListHandler, makeActionHandler, makeHealthHandler,
+    makeListHandler, makeActionHandler, makeHealthHandler, makeInvestigateHandler,
     // Back-compat test surface — now sourced from the extracted authority libs.
     __test: {
         resolvePersona, allowedActionsFor,

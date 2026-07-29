@@ -149,6 +149,40 @@ export function DecisionPromptCard({
     connectorProfileId?: string;
 }) {
     const [showEvidence, setShowEvidence] = useState(false);
+    // Agentic investigation — READ ONLY. It asks the data follow-up questions
+    // about this decision; it cannot change severity, status or permissions
+    // (the server states that contract back in `effects`).
+    const [probe, setProbe] = useState<{
+        state: "idle" | "running" | "done" | "refused";
+        findings?: Array<{ id: string; label: string; ok: boolean; answer: string }>;
+        detail?: string;
+        identityCaveat?: string;
+    }>({ state: "idle" });
+
+    const investigate = async () => {
+        if (!connectorProfileId) return;
+        setProbe({ state: "running" });
+        try {
+            const q = `?assistantProfile=${encodeURIComponent(connectorProfileId)}`;
+            const res = await fetch(`/api/insights/action-insights/${prompt.prompt_id}/investigate${q}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "X-Assistant-Profile": connectorProfileId },
+                body: JSON.stringify({}),
+            });
+            const body = await res.json();
+            if (!body.ok) {
+                setProbe({ state: "refused", detail: body.detail || "Couldn't run the investigation." });
+                return;
+            }
+            setProbe({
+                state: "done",
+                findings: body.findings || [],
+                identityCaveat: body.identity?.caveat,
+            });
+        } catch (e) {
+            setProbe({ state: "refused", detail: String((e as Error).message || e) });
+        }
+    };
     const [pinState, setPinState] = useState<"idle" | "pinning" | "pinned" | "error">("idle");
     const [pinError, setPinError] = useState<string | null>(null);
     const sev = SEV[prompt.severity] || SEV.low;
@@ -267,6 +301,15 @@ export function DecisionPromptCard({
                             onClick={() => setShowEvidence((v) => !v)}
                             className="btn btn-ghost btn-sm dpc__evidence-toggle"
                         >{showEvidence ? "Hide evidence" : "View evidence"}</button>
+                        {connectorProfileId && !terminal && (
+                            <button
+                                type="button"
+                                onClick={investigate}
+                                disabled={probe.state === "running"}
+                                className="btn btn-ghost btn-sm"
+                                title="Ask the data three follow-up questions about this decision. Read-only: it cannot change anything."
+                            >{probe.state === "running" ? "Investigating…" : "Investigate"}</button>
+                        )}
                         {canPin && (
                             <button
                                 type="button"
@@ -316,6 +359,27 @@ export function DecisionPromptCard({
                 {/* Plain-language footer. The audit tokens (rule id, action level,
                     raw status) moved into View evidence — they matter for audit,
                     not for deciding. */}
+                {probe.state === "refused" && (
+                    <div className="dpc__pin-error" role="status">{probe.detail}</div>
+                )}
+                {probe.state === "running" && (
+                    <div className="dpc__probe-note" role="status">Asking the data about this one…</div>
+                )}
+                {probe.state === "done" && probe.findings && (
+                    <div className="dpc__probe">
+                        <div className="kicker">What the data says · read-only · nothing was changed</div>
+                        {probe.findings.map((f) => (
+                            <div key={f.id} className="dpc__probe-row">
+                                <b>{f.label}</b>
+                                <span>{f.ok ? f.answer : `Couldn't answer this one — ${f.answer}`}</span>
+                            </div>
+                        ))}
+                        {probe.identityCaveat && (
+                            <div className="dpc__probe-caveat">{probe.identityCaveat}</div>
+                        )}
+                    </div>
+                )}
+
                 <div className="dpc__meta">
                     <span className="card-meta">
                         {prompt.confidence === "high" ? "We're confident about this"

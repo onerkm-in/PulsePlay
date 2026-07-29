@@ -5848,6 +5848,11 @@ require('./lib/actionInsights').register(app, {
     // notifier silently fell back to the log channel even when a webhook was
     // configured — found in live testing 2026-07-27.
     resolveProfile, databricksRequest, auditLog, sendNoMatchingProfile, cfg,
+    // Agentic investigate runs its steps through the SAME Genie round-trip the
+    // rest of the product uses — one code path, one set of governance
+    // behaviours. Passing it as a dep (rather than importing) keeps the
+    // executor unit-testable without a live workspace.
+    askGenie: (profileName, question) => askGenieProfile(profileName, question),
 });
 
 // ── Author-selectable interface mode (segregated | combined) ─────────────────
