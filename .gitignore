@@ -100,3 +100,5 @@ playground/scripts/.*-out/
 # Local Azure deploy metadata (non-secret env-specific local state) + script scratch logs
 scripts/.azure-appservice.json
 scripts/.*.log
+# Runtime spend ledger (spendGuard) — process state, never source
+proxy/.pp-spend-ledger.json
