@@ -129,8 +129,21 @@ export interface DeploymentEmbedTarget {
  */
 export function seedEmbedConfigFromDeployment(target: DeploymentEmbedTarget | null | undefined): boolean {
     if (!target?.powerbiReportId && !target?.lakeviewDashboardId) return false;
-    const current = getEmbedConfig();
-    if (current && Object.keys(current).length > 0) return false;
+    const current = getEmbedConfig() as Record<string, unknown>;
+    // A config THIS module seeded carries a marker. When the deployment
+    // repoints (new dashboard/report declared), marker-bearing configs
+    // re-seed — that's how every stale browser follows the deployment instead
+    // of showing last month's dashboard forever. A config WITHOUT the marker
+    // was authored by a person (Settings → BI) and is never overridden.
+    const seededMarker = current?.__seededFromDeployment === true;
+    if (current && Object.keys(current).length > 0) {
+        if (!seededMarker) return false;
+        const sameTarget = target.lakeviewDashboardId
+            ? current.dashboardId === target.lakeviewDashboardId
+            : current.id === target.powerbiReportId;
+        if (sameTarget) return false;
+        // marker + different declared target → fall through and re-seed
+    }
 
     // All-Databricks pair first: a Lakeview declaration means the deployment
     // wants the Dashboard rendered natively from the same workspace the AI
@@ -140,6 +153,7 @@ export function seedEmbedConfigFromDeployment(target: DeploymentEmbedTarget | nu
     if (target.lakeviewDashboardId) {
         const seeded: Record<string, unknown> = {
             dashboardId: target.lakeviewDashboardId,
+            __seededFromDeployment: true,
         };
         if (target.workspaceUrl) seeded.workspaceUrl = target.workspaceUrl;
         if (target.name) seeded.assistantProfile = target.name;
@@ -152,7 +166,7 @@ export function seedEmbedConfigFromDeployment(target: DeploymentEmbedTarget | nu
     // `reportId` (bi-adapters/powerbi/index.ts). Only the target is seeded -
     // embedUrl and accessToken still come from the server-side token mint, so
     // no credential is ever written to storage here.
-    const seeded: Record<string, unknown> = { id: target.powerbiReportId };
+    const seeded: Record<string, unknown> = { id: target.powerbiReportId, __seededFromDeployment: true };
     if (target.powerbiGroupId) seeded.groupId = target.powerbiGroupId;
     if (target.powerbiDatasetId) seeded.datasetId = target.powerbiDatasetId;
     setEmbedConfig(seeded as BIEmbedConfig);

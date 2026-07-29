@@ -61,3 +61,29 @@ describe("seedEmbedConfigFromDeployment — Lakeview target", () => {
         expect(cfg.groupId).toBe("g-1");
     });
 });
+
+describe("deployment repoint follows for SEEDED configs only", () => {
+    beforeEach(() => {
+        window.localStorage.clear();
+        __resetEmbedConfigStore();
+    });
+
+    it("re-seeds a marker-bearing config when the declared dashboard changes", () => {
+        seedEmbedConfigFromDeployment({ name: "p", lakeviewDashboardId: "lv-old" });
+        const again = seedEmbedConfigFromDeployment({ name: "p", lakeviewDashboardId: "lv-new" });
+        expect(again).toBe(true);
+        expect((getEmbedConfig() as Record<string, unknown>).dashboardId).toBe("lv-new");
+    });
+
+    it("does NOT re-seed when the declared target is unchanged", () => {
+        seedEmbedConfigFromDeployment({ name: "p", lakeviewDashboardId: "lv-1" });
+        expect(seedEmbedConfigFromDeployment({ name: "p", lakeviewDashboardId: "lv-1" })).toBe(false);
+    });
+
+    it("NEVER touches a person-authored config (no marker), even on repoint", () => {
+        window.localStorage.setItem(EMBED_CONFIG_STORAGE_KEY, JSON.stringify({ dashboardId: "mine" }));
+        __resetEmbedConfigStore();
+        expect(seedEmbedConfigFromDeployment({ name: "p", lakeviewDashboardId: "lv-new" })).toBe(false);
+        expect((getEmbedConfig() as Record<string, unknown>).dashboardId).toBe("mine");
+    });
+});

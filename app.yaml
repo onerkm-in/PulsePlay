@@ -84,41 +84,11 @@ env:
   # pointed its synthesis at the non-existent 405B endpoint. Re-add only with a
   # live synthesis endpoint if a multi-space fan-out is wanted.
 
-  # Power BI brain — deterministic DAX over the SCM star (apples-to-apples with
-  # the Genie SCM space). Service-principal auth (app 93bf5419…, created
-  # 2026-07-27 via scripts/create-pbi-service-principal.mjs; non-expiring, unlike
-  # user-refresh, so it survives an always-on deploy). Profile name "powerbidwd"
-  # normalizes to the frontend catalogue id "powerbi-dwd" (hyphen/underscore-
-  # insensitive), so the advertised Power BI bundle lights up. reportId is passed
-  # by the client to the embed route, so it's not needed on the profile.
-  # BEFORE DEPLOY: put the SP secret into the scope once:
-  #   databricks secrets put-secret pulseplay powerbi_sp_secret
-  - name: PROXY_PROFILE_POWERBIDWD_TYPE
-    value: "powerbi-semantic-model"
-  - name: PROXY_PROFILE_POWERBIDWD_AUTH_MODE
-    value: "service-principal"
-  - name: PROXY_PROFILE_POWERBIDWD_AAD_TENANT_ID
-    value: "2b983dc1-08a4-4b13-87d9-065f8db8f99b"
-  - name: PROXY_PROFILE_POWERBIDWD_AAD_CLIENT_ID
-    value: "93bf5419-2785-4976-80b4-cd35064c2a79"
-  - name: PROXY_PROFILE_POWERBIDWD_AAD_CLIENT_SECRET
-    valueFrom: powerbi-sp-secret
-  - name: PROXY_PROFILE_POWERBIDWD_POWERBI_GROUP_ID
-    value: "7bb52a2a-5028-4887-b8ec-7d13e386da93"
-  - name: PROXY_PROFILE_POWERBIDWD_POWERBI_DATASET_ID
-    value: "633b2b11-d390-43f6-9894-fc90855691b6"
-  # Which report the Dashboard opens by default. Workspace dwd_pbi_demo also
-  # holds the older DwD_PBI_Demo (Superstore) report, a different use case that
-  # does NOT reconcile with the SCM star the AI answers from. Declaring the
-  # report here means a fresh browser lands on the right one instead of every
-  # user configuring it by hand in Settings -> BI.
-  #   PulsePlay_SCM_Synthetic report, dataset 633b2b11 (same as above)
-  - name: PROXY_PROFILE_POWERBIDWD_POWERBI_REPORT_ID
-    value: "ead5b770-af86-438d-b650-7be705e89c37"
-  - name: PROXY_PROFILE_POWERBIDWD_DISPLAY_NAME
-    value: "Power BI: Synthetic SCM"
-  - name: PROXY_PROFILE_POWERBIDWD_DATA_DOMAIN
-    value: "synthetic LATAM supply chain — OFR, OTIF, net sales, gross margin, GHG, safety, forecast accuracy; star over dim_date/dim_country/dim_plant/dim_sales_channel"
+  # 2026-07-29 (user direction): the HOSTED app is the Databricks-only shade.
+  # No Power BI profile here - that story (deterministic DAX brain + report
+  # embed) remains fully available in local/dev via proxy/config.json, and can
+  # be re-added by restoring the profile env block + the SP-secret resource
+  # from git history (commit 76e1970).
 
 resources:
   - name: databricks-pat
@@ -126,10 +96,4 @@ resources:
     secret:
       scope: pulseplay
       key: databricks_pat
-      permission: READ
-  - name: powerbi-sp-secret
-    description: Power BI service-principal client secret (app pulseplay-powerbi-sp / 93bf5419). Put once via `databricks secrets put-secret pulseplay powerbi_sp_secret`. Expires 2027-01-27 — rotate before then.
-    secret:
-      scope: pulseplay
-      key: powerbi_sp_secret
       permission: READ
