@@ -6,9 +6,47 @@
  * `.industry-surface` so only surfaces that adopt the system flip to it — the rest of
  * the app is untouched until later remediation passes.
  *
- * Barlow loads from Google Fonts (allowed in index.html CSP); falls back to system-ui
- * offline via the token font stacks. */
-@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;700&family=Barlow+Condensed:wght@400;600&display=swap');
+ * Barlow is SELF-HOSTED (public/fonts, OFL-licensed, latin subset, ~110KB for
+ * all five faces). It used to @import Google Fonts, but the production CSP
+ * (vite.cspFromAllowlist.ts) is strict style-src 'self' — so every deployed
+ * build silently blocked the stylesheet and rendered fallbacks while dev
+ * showed Barlow. Self-hosting kills the external dependency, the per-load
+ * blocked request, and the dev-vs-prod divergence in one move. */
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/barlow-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/barlow-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/barlow-700.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Barlow Condensed';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/barlow-condensed-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Barlow Condensed';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/barlow-condensed-600.woff2') format('woff2');
+}
 
 :root {
   --color-bg: #f2f2f3;
