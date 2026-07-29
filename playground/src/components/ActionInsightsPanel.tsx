@@ -71,7 +71,24 @@ function ageLabel(fetchedAt: number): string {
     return h === 1 ? "1 hour ago" : `${h} hours ago`;
 }
 
-export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, onStatus, hideHeader }: {
+/** A display-only view over the loaded prompts — the cockpit's KPI cards,
+ *  severity bars and donut set this when clicked. Filters what is SHOWN,
+ *  never what is fetched: the data under a filter is always the same data
+ *  the summary numbers were derived from. */
+export interface DecisionViewFilter {
+    severity?: DecisionPrompt["severity"];
+    status?: "awaiting-approval" | "resolved";
+}
+
+export function decisionMatchesView(p: DecisionPrompt, view?: DecisionViewFilter | null): boolean {
+    if (!view) return true;
+    if (view.severity && p.severity !== view.severity) return false;
+    if (view.status === "awaiting-approval" && !(p.approval_required && !["actioned", "rejected", "false-positive", "snoozed"].includes(p.status))) return false;
+    if (view.status === "resolved" && !["actioned", "rejected", "false-positive", "snoozed"].includes(p.status)) return false;
+    return true;
+}
+
+export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, onStatus, hideHeader, view }: {
     proxyBase: string;
     assistantProfile?: string;
     /** Reports the loaded prompt set to a parent (e.g. the cockpit shell derives
@@ -86,6 +103,9 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, onSta
     /** In the cockpit the persona/heading live in the shell chrome, so the panel
      *  renders just the decision list. */
     hideHeader?: boolean;
+    /** Display filter from the cockpit's interactive summary (see
+     *  DecisionViewFilter). Never affects fetching or the onData payload. */
+    view?: DecisionViewFilter | null;
 }) {
     const [data, setData] = useState<ApiResponse | null>(null);
     const [fetchedAt, setFetchedAt] = useState<number | null>(null);
@@ -211,6 +231,9 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, onSta
     };
 
     const prompts = data?.prompts || [];
+    // maxImpact stays over the FULL set so a filtered view doesn't re-scale
+    // every card's relative-impact bar against a smaller denominator.
+    const visiblePrompts = prompts.filter((p) => decisionMatchesView(p, view));
     const maxImpact = prompts.reduce((m, p) => Math.max(m, p.business_impact_value || 0), 0);
     const openCount = prompts.filter((p) =>
         ["new", "refreshed", "pending-approval"].includes(p.status)).length;
@@ -327,7 +350,13 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, onSta
                 </div>
             )}
 
-            {prompts.map((p) => (
+            {view && prompts.length > 0 && visiblePrompts.length === 0 && (
+                <div className="text-muted" style={{ fontSize: 13.5, padding: "20px 0", textAlign: "center" }} role="status">
+                    Nothing matches this view.
+                </div>
+            )}
+
+            {visiblePrompts.map((p) => (
                 <DecisionPromptCard
                     key={p.prompt_id}
                     prompt={p}

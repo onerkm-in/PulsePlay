@@ -264,3 +264,69 @@
   color: #fff;
   font-weight: 600;
 }
+
+/* ── interactive summary (2026-07-29) ─────────────────────────────────────
+   Every summary element drives the decision list below: KPI tiles jump to it
+   (with a matching view filter), severity bars and donut legend toggle a
+   severity filter. Display-only — the tiles' numbers stay derived from the
+   FULL set, so a filter can never contradict the tile that applied it. */
+
+button.dcc-kpi {
+  border: 1px solid transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+button.dcc-kpi:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+button.dcc-kpi:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  button.dcc-kpi { transition: none; }
+  button.dcc-kpi:hover { transform: none; }
+}
+
+/* The action line: says what clicking does. Muted until the tile is hovered
+   or focused so the strip doesn't shout four arrows at once. */
+.dcc-kpi-go {
+  margin-top: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-family: var(--font-heading);
+  opacity: 0.55;
+  transition: opacity 140ms ease;
+}
+button.dcc-kpi:hover .dcc-kpi-go,
+button.dcc-kpi:focus-visible .dcc-kpi-go { opacity: 1; }
+
+/* Severity bars as toggles. */
+button.dcc-sevbar-row {
+  display: block; width: 100%;
+  border: 1px solid transparent; border-radius: var(--radius-md, 6px);
+  background: transparent; font: inherit; text-align: left;
+  cursor: pointer; padding: 6px 8px; margin: 0 -8px;
+}
+button.dcc-sevbar-row:hover { background: var(--color-neutral-100, #f0f0f2); }
+button.dcc-sevbar-row:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+button.dcc-sevbar-row.is-picked {
+  background: var(--color-accent-100, #e4f0fb);
+  border-color: var(--color-accent);
+}
+
+/* Donut legend as toggles. */
+.dcc-donut-leg--btn {
+  border: 1px solid transparent; border-radius: var(--radius-md, 6px);
+  background: transparent; font: inherit; cursor: pointer; padding: 3px 8px;
+}
+.dcc-donut-leg--btn:hover { background: var(--color-neutral-100, #f0f0f2); }
+.dcc-donut-leg--btn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+.dcc-donut-leg--btn.is-picked { background: var(--color-accent-100, #e4f0fb); border-color: var(--color-accent); }
+
+/* Active view filter chip on the decisions card — visible and one click from
+   cleared, so a narrowed list never reads as missing decisions. */
+.dcc-viewchip {
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent-100, #e4f0fb);
+  color: var(--color-accent-800, #2c455d);
+  cursor: pointer; font-size: 11px; padding: 3px 10px;
+}
+.dcc-viewchip:hover { background: var(--color-accent-200, #d6ebff); }

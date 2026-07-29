@@ -16,12 +16,12 @@
 // radius-lg + soft shadow — a deliberate, documented divergence from the flat
 // blueprint default because this is a data-dense cockpit.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
     Clock, Sparkles, MessageCircle, BarChart3, LayoutGrid, Bell, ShieldCheck,
     CircleDollarSign, ListChecks, CheckCircle2, Bookmark, History,
 } from "lucide-react";
-import { ActionInsightsPanel } from "../components/ActionInsightsPanel";
+import { ActionInsightsPanel, type DecisionViewFilter } from "../components/ActionInsightsPanel";
 import type { DecisionPrompt } from "../components/DecisionPromptCard";
 import { MyCanvasRegion } from "../canvas/MyCanvasRegion";
 import "./decisionCanvas.css";
@@ -115,7 +115,13 @@ const SEV_LABEL: Record<string, string> = { critical: "Critical", high: "High", 
 /** Real severity distribution → SVG donut arcs. Scales to the card width, uses a
  *  thinner ring with rounded gaps, a big centre total, and a legend that lists
  *  only the severities actually present (with their counts). */
-function SeverityDonut({ counts }: { counts: Record<string, number> }) {
+function SeverityDonut({ counts, picked, onPick }: {
+    counts: Record<string, number>;
+    /** Currently-filtered severity, for aria-pressed + the picked style. */
+    picked?: string | null;
+    /** Legend click → toggle the severity filter in the shell. */
+    onPick?: (sev: string) => void;
+}) {
     const present = SEV_ORDER.filter((k) => (counts[k] || 0) > 0);
     const total = present.reduce((s, k) => s + (counts[k] || 0), 0);
     const C = 2 * Math.PI * 15.5;
@@ -143,7 +149,17 @@ function SeverityDonut({ counts }: { counts: Record<string, number> }) {
             </div>
             <div className="dcc-donut-legend">
                 {present.map((k) => (
-                    <span key={k} className="dcc-donut-leg"><span className="dcc-dot" style={{ background: SEV_COLOR[k] }} />{SEV_LABEL[k]} <b>{counts[k]}</b></span>
+                    onPick ? (
+                        <button
+                            type="button" key={k}
+                            className={`dcc-donut-leg dcc-donut-leg--btn${picked === k ? " is-picked" : ""}`}
+                            onClick={() => onPick(k)}
+                            aria-pressed={picked === k}
+                            title={picked === k ? "Show everything again" : `Show only ${SEV_LABEL[k].toLowerCase()} decisions`}
+                        ><span className="dcc-dot" style={{ background: SEV_COLOR[k] }} />{SEV_LABEL[k]} <b>{counts[k]}</b></button>
+                    ) : (
+                        <span key={k} className="dcc-donut-leg"><span className="dcc-dot" style={{ background: SEV_COLOR[k] }} />{SEV_LABEL[k]} <b>{counts[k]}</b></span>
+                    )
                 ))}
                 {!present.length && <span className="dcc-empty" style={{ padding: 0 }}>No open decisions.</span>}
             </div>
@@ -193,6 +209,26 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
     // Cockpit mode = a single interface, everything on one plate, with NO
     // cross-screen navigation. Combined mode = the cockpit PLUS the screen nav.
     const showNav = mode === "combined";
+
+    // Interactive summary → the decision list. Clicking a KPI card, a severity
+    // bar or a donut legend entry applies a DISPLAY filter over the prompts
+    // already on the page and scrolls to the list — same fetch, no new query,
+    // and the summary numbers never change (they stay derived from the full
+    // set, so a filter can never contradict the tiles that set it).
+    const [view, setView] = useState<DecisionViewFilter | null>(null);
+    const decisionsRef = useRef<HTMLDivElement | null>(null);
+    const applyView = (next: DecisionViewFilter | null) => {
+        setView(next);
+        const reduce = typeof window !== "undefined"
+            && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+        decisionsRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    };
+    const toggleSeverity = (s: DecisionPrompt["severity"]) =>
+        applyView(view?.severity === s ? null : { severity: s });
+    const viewLabel = view?.severity
+        ? `${SEV_LABEL[view.severity] || view.severity} only`
+        : view?.status === "awaiting-approval" ? "waiting on a manager"
+            : view?.status === "resolved" ? "already sorted" : null;
 
     const kpi = useMemo(() => {
         const open = prompts.filter((p) => !TERMINAL.has(p.status));
@@ -315,39 +351,50 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
                         reads as a proper KPI header, not a lone floating icon. The
                         chips are honest facts about the same prompts, never a
                         fabricated period-over-period delta (we have no history). */}
+                    {/* Every tile is a real action, not just a status: clicking
+                        jumps to the decisions it counts (with the matching view
+                        filter). The visible "→" line says what the click does. */}
                     <div className="dcc-kpis">
-                        <div className="dcc-kpi dcc-kpi--bad">
+                        <button type="button" className="dcc-kpi dcc-kpi--bad" onClick={() => applyView(null)}
+                            aria-label="Show the decisions this money is tied to">
                             <div className="dcc-kpi-top">
                                 <span className="dcc-kpi-icon"><CircleDollarSign size={18} strokeWidth={1.8} aria-hidden /></span>
                                 <span className="dcc-kpi-chip">{kpi.usdCount} priced in $</span>
                             </div>
                             <div className="dcc-kpi-value">{kpi.impact > 0 ? fmtUsd(kpi.impact) : "—"}</div>
                             <div className="dcc-kpi-label">Money at risk if nobody acts</div>
-                        </div>
-                        <div className="dcc-kpi dcc-kpi--violet">
+                            <div className="dcc-kpi-go">See what's at risk →</div>
+                        </button>
+                        <button type="button" className="dcc-kpi dcc-kpi--violet" onClick={() => applyView(null)}
+                            aria-label="Show every decision waiting on you">
                             <div className="dcc-kpi-top">
                                 <span className="dcc-kpi-icon"><ListChecks size={18} strokeWidth={1.8} aria-hidden /></span>
                                 <span className="dcc-kpi-chip">{kpi.critical} most urgent</span>
                             </div>
                             <div className="dcc-kpi-value">{scanning ? "—" : kpi.open}</div>
                             <div className="dcc-kpi-label">Waiting for you to decide</div>
-                        </div>
-                        <div className="dcc-kpi dcc-kpi--warn">
+                            <div className="dcc-kpi-go">Review them →</div>
+                        </button>
+                        <button type="button" className="dcc-kpi dcc-kpi--warn" onClick={() => applyView({ status: "awaiting-approval" })}
+                            aria-label="Show only the decisions waiting on a manager's approval">
                             <div className="dcc-kpi-top">
                                 <span className="dcc-kpi-icon"><Clock size={18} strokeWidth={1.8} aria-hidden /></span>
                                 <span className="dcc-kpi-chip">a person must say yes</span>
                             </div>
                             <div className="dcc-kpi-value">{scanning ? "—" : kpi.approvals}</div>
                             <div className="dcc-kpi-label">Need a manager's approval</div>
-                        </div>
-                        <div className="dcc-kpi dcc-kpi--good">
+                            <div className="dcc-kpi-go">See who's waiting →</div>
+                        </button>
+                        <button type="button" className="dcc-kpi dcc-kpi--good" onClick={() => applyView({ status: "resolved" })}
+                            aria-label="Show the decisions you already sorted">
                             <div className="dcc-kpi-top">
                                 <span className="dcc-kpi-icon"><CheckCircle2 size={18} strokeWidth={1.8} aria-hidden /></span>
                                 <span className="dcc-kpi-chip">this visit</span>
                             </div>
                             <div className="dcc-kpi-value">{scanning ? "—" : kpi.resolved}</div>
                             <div className="dcc-kpi-label">Already sorted by you</div>
-                        </div>
+                            <div className="dcc-kpi-go">See what you did →</div>
+                        </button>
                     </div>
 
                     {/* Chart row — open decisions by severity (count bars, always
@@ -364,7 +411,15 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
                             {kpi.bySev.length ? (
                                 <div className="dcc-sevbars">
                                     {kpi.bySev.map((r) => (
-                                        <div key={r.k} className="dcc-sevbar-row">
+                                        <button
+                                            type="button"
+                                            key={r.k}
+                                            className={`dcc-sevbar-row${view?.severity === r.k ? " is-picked" : ""}`}
+                                            onClick={() => toggleSeverity(r.k as DecisionPrompt["severity"])}
+                                            aria-pressed={view?.severity === r.k}
+                                            aria-label={`Show only ${r.k} decisions (${r.count})`}
+                                            title={view?.severity === r.k ? "Show everything again" : `Show only ${r.k} decisions`}
+                                        >
                                             <div className="dcc-sevbar-head">
                                                 <span className="dcc-sevbar-name">
                                                     <span className="dcc-dot" style={{ background: SEV_COLOR[r.k], borderRadius: 2 }} />
@@ -378,7 +433,7 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
                                             <div className="dcc-sevbar-track">
                                                 <div className="dcc-sevbar-fill" style={{ width: `${Math.max(6, (r.count / kpi.maxCount) * 100)}%`, background: SEV_COLOR[r.k] }} />
                                             </div>
-                                        </div>
+                                        </button>
                                     ))}
                                 </div>
                             ) : (
@@ -391,19 +446,31 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
                         </div>
                         <div className="dcc-card dcc-pad">
                             <h3 className="dcc-section-title" style={{ marginBottom: 8 }}>The share of each</h3>
-                            <SeverityDonut counts={kpi.counts} />
+                            <SeverityDonut counts={kpi.counts} picked={view?.severity} onPick={(s) => toggleSeverity(s as DecisionPrompt["severity"])} />
                         </div>
                     </div>
 
                     {/* Needs Your Decision — the real governed list */}
-                    <div className="dcc-card dcc-decisions">
+                    <div className="dcc-card dcc-decisions" ref={decisionsRef}>
                         <div className="dcc-decisions-head">
                             <h3 className="dcc-section-title" style={{ fontSize: 17 }}>Needs Your Decision</h3>
-                            <span className="dcc-chip" style={{ background: "var(--pp-bad-soft)", color: "var(--pp-bad)", padding: "3px 10px", fontSize: 11 }}>
-                                {kpi.open} to review · most urgent first
-                            </span>
+                            {viewLabel ? (
+                                // The active filter must be visible and one click
+                                // from gone — a silently narrowed list reads as
+                                // missing decisions.
+                                <button
+                                    type="button"
+                                    className="dcc-chip dcc-viewchip"
+                                    onClick={() => setView(null)}
+                                    aria-label={`Showing ${viewLabel}. Clear this filter`}
+                                >Showing {viewLabel} · show all ✕</button>
+                            ) : (
+                                <span className="dcc-chip" style={{ background: "var(--pp-bad-soft)", color: "var(--pp-bad)", padding: "3px 10px", fontSize: 11 }}>
+                                    {kpi.open} to review · most urgent first
+                                </span>
+                            )}
                         </div>
-                        <ActionInsightsPanel key={persona || "none"} proxyBase={proxyBase} assistantProfile={activeProfile} onData={setPrompts} onStatus={setStatus} hideHeader />
+                        <ActionInsightsPanel key={persona || "none"} proxyBase={proxyBase} assistantProfile={activeProfile} onData={setPrompts} onStatus={setStatus} hideHeader view={view} />
                     </div>
 
                     {/* Since You Last Visited + My Canvas */}
