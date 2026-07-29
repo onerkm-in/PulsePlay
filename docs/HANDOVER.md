@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-07-29 (latest+38) — both stories validated separately; deployed to Databricks Apps at HEAD
+
+Commits `76e1970` (app.yaml final state) · `5e63b0f` (lakeview counter band). **DEPLOYED: the `pulseplay` Databricks App runs commit `5e63b0f`** — compute restarted from STOPPED, git-source deploy SUCCEEDED, app RUNNING, URL answers 302 to platform login (gated by design). The container builds the playground from source at boot, so the latest build is in by construction.
+
+**Power BI story (solely):** connector `powerbi-dwd` + vendor `powerbi`. DAX brain answers live (OFR 98.11 with the honest "Unscoped answer" disclosure — value filters unsupported on the deterministic path) and renders a briefing; Decisions degrades gracefully ("no Databricks warehouse" notice); report embed fails locally on C1 (no SP creds on this box — the hosted app.yaml carries the SP secret, so embed works there). Noted, not chased: the PBI deterministic path emits 4-decimal values ("98.1196"), off the 2-decimal convention.
+
+**Databricks story (solely):** wiped browser boots the seeded pair (genie-scm-poc + databricks-aibi) — cockpit `$10.62 M` / 3 open, Decisions 7 cards, briefing present, Ask composer live, native SCM dashboard with Refresh. This IS the deployment default = the "reconfigure Databricks-only" final state.
+
+**Grid-void fix (`5e63b0f`, user screenshot):** in one mixed grid a 3-row chart beside 1-row counters stretched the row to chart height — void under every counter. Counters now render in their own compact KPI band above the chart grid (generic for any dashboard). Note: the native renderer intentionally ignores spec x/y positions — bands + document order govern layout; repositioning widgets via the Lakeview API does NOT move them here (learned the hard way).
+
+**app.yaml final state (`76e1970`):** `PROXY_PROFILE_DEFAULT_LAKEVIEW_DASHBOARD_ID` (env mapping added server-side) so hosted browsers seed the native SCM Dashboard, and `AI_ALLOW_DEMO_PERSONA=true` for the demo persona switch (IdP roles still always win).
+
+---
+
 ## 2026-07-29 (latest+37) — headed validation of all five UIs passed; personas explain themselves
 
 Commit `2805341`. Playground **1,998/1,998**, proxy **1,528/1,528**. Full headed pass from a WIPED browser, all live:
