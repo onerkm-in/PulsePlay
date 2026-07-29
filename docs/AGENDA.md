@@ -8,12 +8,28 @@
 
 Ordered by impact × cost. Each item is independently shippable.
 
-- [ ] **CLEAN-CODE-D5/D11 — incremental maintainability gates** — Audit:
+- [~] **CLEAN-CODE-D5/D11 — incremental maintainability gates** — Audit:
   [Clean Code conformance, 2026-07-28](research/CLEAN_CODE_CONFORMANCE_AUDIT_2026-07-28.md).
   Execute existing D5 Phase 1 mechanically; baseline correctness-first ESLint
   and critical-module coverage without a formatting or percentage avalanche.
   Proxy finding CC-02 is already tracked by REBUILD-P0 below; do not create a
   parallel rewrite.
+  **D5 Phase 1 STARTED 2026-07-28 (`f31139a`):** the inline measurement grammar
+  (12 declarations) moved to `pulse/rendering/inlineGrammar.ts` with
+  characterisation tests; `visual.tsx` 13,523 → 13,433. **Correction to the
+  plan:** order Phase 1 by DEPENDENCY PURITY, not declaration size —
+  `inlineFormat` (the largest listed candidate) is not mechanically movable, it
+  sits in an 18-declaration cluster reaching React, glyph normalisation and
+  metric-tone lookup. **Next unit assessed, not started:**
+  `extractRuleMetricNames` + `metricNameBeforePill` + `pillColorClass` +
+  `InlineMetricRules` → a `pillSemantics` module (pure; dependencies already in
+  `rendering/metricDirections.ts`; the type has no external importers). Detail
+  in `DEBT_REGISTER.md` D5. **D11 not started** — ESLint/coverage baseline is
+  untouched.
+  **NEW D12 (2026-07-28):** `AGENTS.md` duplicates `CLAUDE.md` and has drifted
+  into contradiction (deleted files, wrong ports 8787/5173 vs 7000/7001, nine
+  vs ten backend paths, stale test counts). Target is a pointer, not a
+  hand-synced second copy.
 
 - [x] **SYNTH-SCM-2026-07-26 — as-of-30-Jun-2026 3-year window + PulsePlay-owned Genie space config + prompt-leak fix** — DONE (`a296ede` + `3a8549c`, main fast-forwarded). Fixes the `genie-scm-poc` KPI-snapshot "No prior period data available" complaint: `cpg_reskin.py` now spans 2024/2025 full + 2026 Jan-Jun (nothing after 2026-06), even proportional month allocation, deterministic YoY trend/seasonality; NEW idempotent `genie_space_config.py` owns the space instructions (1 general + 14 example SQL) via the `data-rooms` API; `extractGenieText` no longer leaks the `# Section:/[User question]` scaffold into Genie section bodies. Validated E2E Tables↔Views↔Metric Views↔Genie↔proxy. **Follow-up (SYNTH-P1):** the older point-in-time reports under `docs/synthetic_poc/` (SYNTHETIC_BUILD_PLAN, VALIDATION_REPORT, DDL_INVENTORY, SUPPLY_CHAIN_MEASURES, etc.) are still untracked AND describe the OLD 2025-2027 window — refresh to the new as-of window and commit, or delete. Also possible: parameterised `use_as_tool` SQL "functions" on the Genie space (currently all examples).
 - [ ] **UICLEAN-P2 — residual uiMode "pulse"|"v0" type plumbing** — the Chat surface (v0) was removed 2026-07-24 (`a0faa99`) but its internal TYPE plumbing remains and always resolves "pulse": `settingsStore` uiMode field + `readUiMode` (no app consumers now), `featureRegistry/resolver.ts` `resolveDefaultSurface` (pulse/v0/dashboard, unused by app code), FirstRunWizard `uiMode` preset field + `DEFAULT_UI_MODE`. Purging touches core settingsStore state + reducer + the resolver + wizard presets + several passing tests — deferred from the removal to avoid core-state risk. Not a live interface (v0 is unreachable), just a type cleanup.
