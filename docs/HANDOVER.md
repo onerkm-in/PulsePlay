@@ -5,6 +5,29 @@
 
 ---
 
+## 2026-07-29 (latest+32) — D5 Phase 1 started; Dashboard charts load on demand; responsive pass found no defects
+
+Commits `244dfba` (doc hygiene + D12) · `f31139a` (D5 Phase 1) · `905af28` / `71fdebd` (trackers) · `c50b6a2` (chart gating) · `9616cda` (responsive evidence). Playground **1,980/1,980** across 153 files, tsc + production build clean.
+
+**D5 Phase 1 started (`f31139a`).** The inline measurement grammar - 12 declarations covering the unit vocabulary, the trend vocabulary, the composite `INLINE_REGEX` built from both, and the predicates that qualify a match - moved verbatim to `pulse/rendering/inlineGrammar.ts`. `visual.tsx` **13,523 → 13,433**; the diff is 14 insertions / 104 deletions, i.e. a move. Target is inside `pulse/**` with **zero imports**, so `sync-from-pulseplay.mjs` still ships it to the PBI sibling and it cannot trip the `_ext/` stubbing.
+
+**The D5 plan's ordering heuristic was wrong and is corrected in the register.** It ranked candidates by declaration size, but `inlineFormat` - the largest listed - is NOT mechanically movable: it sits in an 18-declaration cluster reaching React (`TrendPyramid`), glyph normalisation and metric-tone lookup. **Order Phase 1 by dependency purity, not size.** Next unit assessed and ready but not started: `extractRuleMetricNames` + `metricNameBeforePill` + `pillColorClass` + `InlineMetricRules` (pure; dependencies already in `rendering/metricDirections.ts`; the type has no external importers).
+
+**Four imports deliberately not taken back.** `TREND`, `FLAT_GLYPH`, `FLAT_WORD`, `MEAS_UNIT` exist only to compose `INLINE_REGEX`, which moved with them. Caught by counting each moved symbol's remaining references rather than trusting a green `tsc` - the one apparent `TREND` hit left in `visual.tsx` is the string literal `/TREND/` in a section-title regex.
+
+**Dashboard charts now initialise when wanted, not all at once (`c50b6a2`).** `EChartsRenderer` called `echarts.init` + `setOption` synchronously in a mount effect, so a Dashboard of pinned tiles initialised every chart in ONE React commit and off-screen tiles paid full layout cost. Now viewport-gated (200px rootMargin) and throttled to one initialisation per animation frame. Where `IntersectionObserver` is absent (jsdom) it initialises immediately, exactly as before - deliberate, so no pre-existing test starts depending on scheduling. Also fixed while there: a late-initialising chart reads the LATEST option via a ref, otherwise gating would have introduced a stale-data bug the eager path could not have.
+
+**Responsive: measured, no defects found (`9616cda`).** All four surfaces at a true 390x844 mobile viewport, ~502px and 1442px report `pageOverflow 0 / overflowingElements 0 / clippedContainers 0`. Lakeview Dashboard reflows 1 column at 390px → 5 columns at 1920px with zero overflow. Ask Pulse re-measured at 390px with a real Genie answer rendered (7 canvases) stayed clean. The gating was confirmed live: 5 of 15 canvases initialised at 390px, 7 at 1920px.
+
+**Tripwires:**
+- `resize_page` floors at ~502px content width - true phone widths need CDP **device emulation**.
+- `gn-sr-only` always measures as "clipped"; that IS the visually-hidden pattern, not a defect.
+- A button selector matching `/ask/` hits the **Ask Pulse tab**, not the composer's Send. Scope automation selectors to the composer (`aria-label="Send"`, `type=submit`).
+
+**Not done, stated plainly:** a wide TABLE and a wide SQL/code block are still unmeasured (the test question returned charts); AI Insights with a full briefing is unmeasured (costs several Genie calls); the cockpit/combined "Unified" mode was not exercised at all. **D11** (ESLint / coverage baseline) is untouched. New **D12** registers `AGENTS.md` as a stale duplicate of `CLAUDE.md` contradicting it on ports, deleted files and backend count.
+
+---
+
 ## 2026-07-28 (latest+31) — Databricks-native dashboard shade (retro-logged); both axes now deployment-declared
 
 **Doc-hygiene debt paid.** Commits `9e08a7b` → `5ccfdf2` (eleven) shipped without a HANDOVER entry or `project_state.md` refresh — the audit session recorded them as "pre-existing uncommitted Lakeview/server work" precisely because they were not logged. This entry is retrospective; the code is already on `main` and green.
