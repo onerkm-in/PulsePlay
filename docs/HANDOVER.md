@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-07-29 (latest+39) — app dropped and republished, Databricks-only, at HEAD
+
+Commit `311f7c8`. **The `pulseplay` app was DELETED and RECREATED clean** (snapshot of the old object kept in the session scratchpad), resources rebound (`databricks-pat`), git repo relinked, deploy of `311f7c8` SUCCEEDED, app RUNNING, same URL (302 to platform login).
+
+**Hosted config is now Databricks-only** (user direction): app.yaml drops the Power BI profile + SP-secret resource. The PBI story stays fully available locally via config.json; restore from `76e1970` if the hosted app ever needs it back.
+
+**Stale-browser CLASS fixed:** deployment-seeded embed configs carry `__seededFromDeployment`; when the deployment declares a different dashboard/report, marker-bearing configs re-seed automatically — person-authored configs (no marker) are never touched. Three tests pin it. Browsers that predate the marker still need ONE manual clear (Settings → BI or site-data clear) — after that they follow every future repoint.
+
+**The dashboard "gap" screenshot** the user re-sent is the pre-`5e63b0f` render: counters-in-their-own-band fixed it, verified headed locally, and is in the deployed commit.
+
+---
+
 ## 2026-07-29 (latest+38) — both stories validated separately; deployed to Databricks Apps at HEAD
 
 Commits `76e1970` (app.yaml final state) · `5e63b0f` (lakeview counter band). **DEPLOYED: the `pulseplay` Databricks App runs commit `5e63b0f`** — compute restarted from STOPPED, git-source deploy SUCCEEDED, app RUNNING, URL answers 302 to platform login (gated by design). The container builds the playground from source at boot, so the latest build is in by construction.
