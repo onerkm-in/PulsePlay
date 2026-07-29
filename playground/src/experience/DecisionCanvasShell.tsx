@@ -125,8 +125,11 @@ const SEV_LABEL: Record<string, string> = { critical: "Critical", high: "High", 
 /** Real severity distribution → SVG donut arcs. Scales to the card width, uses a
  *  thinner ring with rounded gaps, a big centre total, and a legend that lists
  *  only the severities actually present (with their counts). */
-function SeverityDonut({ counts, picked, onPick }: {
+function SeverityDonut({ counts, scanning, picked, onPick }: {
     counts: Record<string, number>;
+    /** While the fetch is in flight the ring must not render "0 open" - an
+     *  unfetched list and an empty list are different facts. */
+    scanning?: boolean;
     /** Currently-filtered severity, for aria-pressed + the picked style. */
     picked?: string | null;
     /** Legend click → toggle the severity filter in the shell. */
@@ -140,9 +143,16 @@ function SeverityDonut({ counts, picked, onPick }: {
     return (
         <div className="dcc-donut-wrap">
             <div className="dcc-donut-figure">
-                <svg viewBox="0 0 36 36" role="img" aria-label={`Open decisions by severity: ${total} total`} style={{ width: "100%", height: "auto" }}>
+                <svg viewBox="0 0 36 36" role="img" aria-label={scanning ? "Checking open decisions" : `Open decisions by severity: ${total} total`} style={{ width: "100%", height: "auto" }}>
                     <circle cx="18" cy="18" r="15.5" fill="none" stroke="var(--color-neutral-200, #e7e7ea)" strokeWidth="3.4" />
-                    {present.map((k) => {
+                    {scanning && (
+                        // A moving arc says "working" where a static grey ring
+                        // plus "0" said "nothing to do".
+                        <circle className="dcc-donut-spin" cx="18" cy="18" r="15.5" fill="none"
+                            stroke="var(--color-accent, #0071ce)" strokeWidth="3.4" strokeLinecap="round"
+                            strokeDasharray={`${C * 0.25} ${C * 0.75}`} />
+                    )}
+                    {!scanning && present.map((k) => {
                         const n = counts[k] || 0;
                         const len = Math.max(0, (n / total) * C - gap);
                         const el = (
@@ -153,8 +163,8 @@ function SeverityDonut({ counts, picked, onPick }: {
                         offset += (n / total) * C;
                         return el;
                     })}
-                    <text x="18" y="17.5" textAnchor="middle" fontFamily="var(--font-heading)" fontSize="8" fontWeight="600" fill="var(--color-text)">{total}</text>
-                    <text x="18" y="23" textAnchor="middle" fontFamily="var(--font-body)" fontSize="3.1" fill="var(--color-neutral-600, #7a7a7d)">open</text>
+                    <text x="18" y="17.5" textAnchor="middle" fontFamily="var(--font-heading)" fontSize="8" fontWeight="600" fill="var(--color-text)">{scanning ? "—" : total}</text>
+                    <text x="18" y="23" textAnchor="middle" fontFamily="var(--font-body)" fontSize="3.1" fill="var(--color-neutral-600, #7a7a7d)">{scanning ? "checking" : "open"}</text>
                 </svg>
             </div>
             <div className="dcc-donut-legend">
@@ -171,7 +181,8 @@ function SeverityDonut({ counts, picked, onPick }: {
                         <span key={k} className="dcc-donut-leg"><span className="dcc-dot" style={{ background: SEV_COLOR[k] }} />{SEV_LABEL[k]} <b>{counts[k]}</b></span>
                     )
                 ))}
-                {!present.length && <span className="dcc-empty" style={{ padding: 0 }}>No open decisions.</span>}
+                {!scanning && !present.length && <span className="dcc-empty" style={{ padding: 0 }}>No open decisions.</span>}
+                {scanning && <span className="dcc-empty" style={{ padding: 0 }}>Checking…</span>}
             </div>
         </div>
     );
@@ -505,7 +516,7 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
                             aria-label="Show the decisions this money is tied to">
                             <div className="dcc-kpi-top">
                                 <span className="dcc-kpi-icon"><CircleDollarSign size={18} strokeWidth={1.8} aria-hidden /></span>
-                                <span className="dcc-kpi-chip">{kpi.usdCount} priced in $</span>
+                                <span className="dcc-kpi-chip">{scanning ? "counting…" : `${kpi.usdCount} priced in $`}</span>
                             </div>
                             <div className="dcc-kpi-value">{kpi.impact > 0 ? fmtUsd(kpi.impact) : "—"}</div>
                             <div className="dcc-kpi-label">Money at risk if nobody acts</div>
@@ -515,7 +526,7 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
                             aria-label="Show every decision waiting on you">
                             <div className="dcc-kpi-top">
                                 <span className="dcc-kpi-icon"><ListChecks size={18} strokeWidth={1.8} aria-hidden /></span>
-                                <span className="dcc-kpi-chip">{kpi.critical} most urgent</span>
+                                <span className="dcc-kpi-chip">{scanning ? "counting…" : `${kpi.critical} most urgent`}</span>
                             </div>
                             <div className="dcc-kpi-value">{scanning ? "—" : kpi.open}</div>
                             <div className="dcc-kpi-label">Waiting for you to decide</div>
@@ -592,7 +603,7 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
                         </div>
                         <div className="dcc-card dcc-pad">
                             <h3 className="dcc-section-title" style={{ marginBottom: 8 }}>The share of each</h3>
-                            <SeverityDonut counts={kpi.counts} picked={view?.severity} onPick={(s) => toggleSeverity(s as DecisionPrompt["severity"])} />
+                            <SeverityDonut counts={kpi.counts} scanning={scanning} picked={view?.severity} onPick={(s) => toggleSeverity(s as DecisionPrompt["severity"])} />
                         </div>
                     </div>
 
@@ -612,7 +623,7 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
                                 >Showing {viewLabel} · show all ✕</button>
                             ) : (
                                 <span className="dcc-chip" style={{ background: "var(--pp-bad-soft)", color: "var(--pp-bad)", padding: "3px 10px", fontSize: 11 }}>
-                                    {kpi.open} to review · most urgent first
+                                    {scanning ? "checking…" : `${kpi.open} to review · most urgent first`}
                                 </span>
                             )}
                         </div>

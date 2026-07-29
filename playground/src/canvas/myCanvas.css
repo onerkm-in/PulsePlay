@@ -20,3 +20,11 @@
 .mc-row-sub { font-size: 10.5px; }
 .mc-row-actions { display: flex; gap: 4px; flex: 0 0 auto; }
 .mc-icon { width: 28px; padding: 4px 0; }
+
+/* Inside the cockpit, drop the blueprint crop-marks and the inner frame: those
+   belong to the flat blueprint surface, and on an elevated cockpit card they
+   read as registration marks on an unfinished design. The card already
+   provides the boundary. */
+.dc-cockpit .mc-region > .corner { display: none; }
+.dc-cockpit .mc-region { border: 0; }
+.dc-cockpit .mc-head { border-bottom: 1px solid var(--color-divider); padding-bottom: 8px; }
