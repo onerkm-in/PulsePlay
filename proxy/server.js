@@ -351,7 +351,12 @@ const ENV_PROFILE_FIELDS = {
     POWERBIREPORTID: 'powerbiReportId',
     POWER_BI_REPORT_ID: 'powerbiReportId',
     STATIC_PROBE_PATH: 'staticProbePath',
-    STATICPROBEPATH: 'staticProbePath'
+    STATICPROBEPATH: 'staticProbePath',
+    // Lakeview dashboard for the all-Databricks pair - lets a DEPLOYMENT say
+    // which dashboard the Dashboard surface renders natively (same rationale
+    // as POWERBI_REPORT_ID above).
+    LAKEVIEW_DASHBOARD_ID: 'lakeviewDashboardId',
+    LAKEVIEWDASHBOARDID: 'lakeviewDashboardId'
 };
 
 function loadEnvProfiles(env = process.env) {

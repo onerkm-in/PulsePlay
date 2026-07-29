@@ -18,6 +18,12 @@ env:
   - name: PROXY_AUTH_MODE
     value: "none"
 
+  # Demo persona switching (Planner/Manager "View as"). ON for this demo
+  # deployment because no IdP role mapping is wired; an IdP role, when present,
+  # always wins and the switch disappears (SEC-01).
+  - name: AI_ALLOW_DEMO_PERSONA
+    value: "true"
+
   # Static-serve: relative to repo root (proxy resolves via __dirname + '..').
   - name: STATIC_DIR
     value: "playground/dist"
@@ -38,6 +44,12 @@ env:
     value: "Genie: Synthetic SCM (POC)"
   - name: PROXY_PROFILE_DEFAULT_DATA_DOMAIN
     value: "synthetic LATAM supply chain — countries, plants, sales channels, OFR/operations/performance facts"
+  # All-Databricks Dashboard: the PulsePlay SCM Lakeview dashboard (created
+  # 2026-07-29 over main.supply_chain.fact_supply_chain_kpi_monthly — the same
+  # fact the decision rules scan). A fresh browser seeds the Dashboard surface
+  # to render it NATIVELY through this profile; no workspace token in the browser.
+  - name: PROXY_PROFILE_DEFAULT_LAKEVIEW_DASHBOARD_ID
+    value: "01f18b1911851e9eb75f3c0bd8fb0120"
 
   # Second Genie profile — Customer Support Review (the other live space).
   # Kept so the deployed app mirrors the local config.json (genie + genie-scm-poc).
