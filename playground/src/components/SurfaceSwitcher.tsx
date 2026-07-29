@@ -5,8 +5,17 @@
 // in screen-reader output). Driven by the surface registry so every
 // surface gets the same visual + aria treatment.
 
+import { createContext, useContext } from "react";
 import type { SurfaceIcon, SurfaceId } from "../surfaceRegistry";
 import { SURFACES } from "../surfaceRegistry";
+
+/** Provided by ExperienceRoutedApp when the segregated shell is hosting a
+ *  sub-screen of the combined-mode cockpit. Context rather than a prop because
+ *  the switcher renders from several hosts (App panes, PulseShell, empty
+ *  states) — threading a prop through the Pulse compat tree would touch code
+ *  the PBI sibling consumes, and calling useExperienceMode() here would fetch
+ *  the config once per switcher instance. */
+export const OverviewNavContext = createContext<(() => void) | null>(null);
 
 interface SurfaceSwitcherProps {
     /** Active surface id. Drives selected state + aria-selected.
@@ -29,12 +38,33 @@ interface SurfaceSwitcherProps {
 }
 
 export function SurfaceSwitcher({ active, onPick, availability, trailing }: SurfaceSwitcherProps): React.ReactElement {
+    // Set only when a combined-mode cockpit exists to go back to. Without this
+    // affordance a user who jumped from the cockpit to any screen had NO route
+    // back (found live 2026-07-29): renders a leading "Overview" button.
+    const onOverview = useContext(OverviewNavContext);
     return (
         <div
             role="tablist"
             aria-label="PulsePlay surfaces"
             className="pp-surface-switcher"
         >
+            {onOverview && (
+                // Deliberately NOT role="tab": it navigates to a different shell
+                // (the cockpit), it doesn't select a pane in this tablist.
+                <button
+                    type="button"
+                    aria-label="Back to Overview"
+                    title="Back to the Overview cockpit"
+                    onClick={onOverview}
+                    className="pp-surface-switcher__item pp-surface-switcher__overview"
+                >
+                    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="M15 18 L9 12 L15 6" />
+                    </svg>
+                    <span className="pp-surface-switcher__label" aria-hidden="true">Overview</span>
+                    <span className="pp-surface-switcher__label-short" aria-hidden="true">Home</span>
+                </button>
+            )}
             {SURFACES.map((surface) => {
                 const isActive = surface.id === active;
                 const isAvailable = availability ? availability[surface.id] !== false : true;

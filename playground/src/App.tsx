@@ -18,7 +18,7 @@ import type powerbi from "./pulse/_adapter/powerbi-visuals-api";
 import { Icon } from "./pulse/_adapter/Icon";
 import { useEmbedConfig } from "./settings/embedConfigStore";
 import { FirstRunWizard, WizardErrorBoundary, shouldShowWizard, type PersonaKey } from "./components/FirstRunWizard";
-import { SurfaceSwitcher } from "./components/SurfaceSwitcher";
+import { SurfaceSwitcher, OverviewNavContext } from "./components/SurfaceSwitcher";
 import { ActionInsightsPanel } from "./components/ActionInsightsPanel";
 import { BundleSwitcher } from "./components/BundleSwitcher";
 import { PaneEmptyState, DashboardIcon } from "./components/PaneEmptyState";
@@ -157,7 +157,14 @@ function readPulseAssistantProfile(): string {
  * genieSettings JSON the settingsStore writes.
  */
 function readConfiguredProxyBase(): string {
-    if (typeof window === "undefined") return "http://127.0.0.1:8787";
+    // Fallback is the RELATIVE /api base — dev (Vite), preview and Databricks
+    // Apps all proxy it to the running proxy server. It used to be the
+    // absolute legacy port `http://127.0.0.1:8787`, which nothing listens on
+    // under the canonical 7000/7001 setup: any browser profile without a saved
+    // apiBaseUrl had Decisions fail its very first fetch ("Failed to fetch")
+    // while the cockpit — which already fell back to /api — worked. An
+    // explicitly configured apiBaseUrl still wins.
+    if (typeof window === "undefined") return "/api";
     try {
         const raw = window.localStorage.getItem("pulseplay:visual-settings:genieSettings");
         if (raw) {
@@ -166,7 +173,7 @@ function readConfiguredProxyBase(): string {
             if (typeof v === "string" && v.trim()) return v.trim();
         }
     } catch { /* swallow */ }
-    return "http://127.0.0.1:8787";
+    return "/api";
 }
 
 /**
@@ -457,6 +464,17 @@ function readSurfaceParam(): string | null {
     try { return new URL(window.location.href).searchParams.get(ACTIVE_SURFACE_URL_PARAM); } catch { return null; }
 }
 
+/** Return to the cockpit Overview: clear ?surface and let the popstate
+ *  listener re-route. Mirrors DecisionCanvasShell.goToSurface in reverse. */
+function goToOverview(): void {
+    try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete(ACTIVE_SURFACE_URL_PARAM);
+        window.history.pushState({}, "", url.toString());
+        window.dispatchEvent(new PopStateEvent("popstate"));
+    } catch { /* swallow */ }
+}
+
 function ExperienceRoutedApp(): React.ReactElement {
     const { effectiveMode, loading } = useExperienceMode();
     // Combined mode hosts BOTH the cockpit and the individual screens: the
@@ -470,14 +488,35 @@ function ExperienceRoutedApp(): React.ReactElement {
         return () => window.removeEventListener("popstate", on);
     }, []);
 
+    // DOM flag for the Pulse workbench strip, which renders in its OWN React
+    // root (context cannot reach it) and already talks to the host via DOM
+    // detection + the viewport-action event bridge. Present only when a
+    // combined-mode cockpit exists to go back to.
+    const overviewHosted = !loading && effectiveMode === "combined"
+        && !!(surfaceParam && isSurfaceId(surfaceParam));
+    useEffect(() => {
+        if (typeof document === "undefined") return;
+        if (overviewHosted) document.documentElement.dataset.ppOverviewNav = "1";
+        else delete document.documentElement.dataset.ppOverviewNav;
+        return () => { delete document.documentElement.dataset.ppOverviewNav; };
+    }, [overviewHosted]);
+
     // While resolving, render the segregated shell (the fail-safe default) so
     // the existing experience never flashes a blank frame waiting on config.
     if (loading) return <PlaygroundApp />;
     if (effectiveMode === "cockpit") return <DecisionCanvasShell mode="cockpit" />;
     if (effectiveMode === "combined") {
-        // A real screen selected → hand off to the segregated shell for it;
+        // A real screen selected → hand off to the segregated shell for it —
+        // WITH a route back to the cockpit (every SurfaceSwitcher instance
+        // picks it up via context), or the jump is one-way;
         // otherwise land on the cockpit (the default).
-        if (surfaceParam && isSurfaceId(surfaceParam)) return <PlaygroundApp />;
+        if (surfaceParam && isSurfaceId(surfaceParam)) {
+            return (
+                <OverviewNavContext.Provider value={goToOverview}>
+                    <PlaygroundApp />
+                </OverviewNavContext.Provider>
+            );
+        }
         return <DecisionCanvasShell mode="combined" />;
     }
     return <PlaygroundApp />;
@@ -819,6 +858,10 @@ function PlaygroundApp(): React.ReactElement {
             // mobile bottom nav) reach app-level surfaces that are not Pulse
             // tabs (action-insights). Same routing as a SurfaceSwitcher click.
             if (action === "pick-surface") {
+                // "overview" is not a SurfaceId — it is the combined-mode
+                // cockpit ABOVE the surfaces. The Pulse strip (separate React
+                // root; context can't reach it) sends it over this bridge.
+                if (detail?.surface === "overview") { goToOverview(); return; }
                 if (isSurfaceId(detail?.surface)) handleSurfacePick(detail.surface);
                 return;
             }

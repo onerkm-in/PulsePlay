@@ -2136,6 +2136,15 @@ html, body, #root {
     box-shadow: none;
 }
 
+/* Combined mode only: leading "Back to Overview". A hairline divider separates
+   going UP (to the cockpit) from switching ACROSS (between sub-screens). */
+.pp-surface-switcher__overview {
+    margin-right: 6px;
+    padding-right: 16px;
+    border-radius: var(--pp-radius-pill, 999px) 0 0 var(--pp-radius-pill, 999px);
+    border-right: 1px solid var(--pp-border, rgba(15, 23, 42, 0.10));
+}
+
 /* F5.1 — Surface unavailable in the current deployment configuration.
  * The pill stays in the tablist (configuration options are never
  * hidden globally), but it's visibly de-emphasised and not clickable.

@@ -240,7 +240,7 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, onSta
                                     >{loading ? "refreshing…" : "refresh"}</button>
                                 </>
                             ) : (
-                                <>Loads on demand. Nothing queries the warehouse until you ask.</>
+                                <>Checking your supply chain…</>
                             )}
                         </div>
                     </div>

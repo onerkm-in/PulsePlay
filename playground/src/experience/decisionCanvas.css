@@ -202,6 +202,12 @@
 .dc-cockpit--narrow .dcc-side {
   width: 100%; flex-direction: row; align-items: center; flex-wrap: wrap;
   padding: 12px 14px; gap: 12px; box-shadow: var(--shadow-sm);
+  /* The wide-layout viewport pin must not apply here: as a horizontal top
+     strip, sticky+100vh centres the icons in an empty full-height band and
+     pushes the entire content column below the fold (found live at 390px). */
+  position: static;
+  height: auto;
+  overflow-y: visible;
 }
 .dc-cockpit--narrow .dcc-nav { flex-direction: row; flex-wrap: wrap; gap: 6px; flex: 1 1 auto; }
 .dc-cockpit--narrow .dcc-navlink { width: auto; min-height: 40px; padding: 8px 12px; }

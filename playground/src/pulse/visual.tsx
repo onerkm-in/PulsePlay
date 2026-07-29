@@ -329,6 +329,16 @@ function isHostedInPulsePlayShell(): boolean {
     try { return !!document.querySelector("[data-active-surface]"); } catch { return false; }
 }
 
+/** True when the host shell has a combined-mode cockpit Overview to return to
+ *  (App stamps `data-pp-overview-nav` on <html> while hosting a sub-screen).
+ *  Same DOM-detection pattern as isHostedInPulsePlayShell — this tree renders
+ *  in its own React root, so host context cannot reach it. Always false in the
+ *  PBI custom-visual sandbox. */
+function hostHasOverviewNav(): boolean {
+    if (typeof document === "undefined") return false;
+    try { return document.documentElement.dataset.ppOverviewNav === "1"; } catch { return false; }
+}
+
 // 2026-05-25 — per-tab-visibility model. Read by visual.tsx to decide which
 // of AI Insights / Ask Pulse / Dashboard tab buttons render in the strip,
 // and whether the strip itself collapses (when ≤1 tab is enabled, the
@@ -5448,6 +5458,26 @@ function App(props: AppProps) {
                     {tabVisibilityCount >= 2 && (
                         <div className="gn-surface-switcher" aria-label="Visual surfaces">
                             <div className="gn-header-tabs" role="tablist" aria-label="PulsePlay surfaces">
+                                {/* Back to the combined-mode cockpit Overview. NOT a tab — it
+                                    leaves this shell entirely — so no role="tab". Gated on the
+                                    host's data-pp-overview-nav flag: absent in segregated mode
+                                    and in the PBI sandbox, where there is no cockpit above. */}
+                                {hostHasOverviewNav() && (
+                                <button
+                                    id="gn-tab-overview"
+                                    className="gn-header-tab gn-header-tab--surface-action"
+                                    onClick={() => dispatchPulsePlaySurfacePick("overview")}
+                                    aria-label="Back to Overview"
+                                    title="Back to the Overview cockpit"
+                                >
+                                    <span className="gn-header-tab-icon" aria-hidden="true">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M15 18 L9 12 L15 6" />
+                                        </svg>
+                                    </span>
+                                    <span>Overview</span>
+                                </button>
+                                )}
                                 {/* Decisions (action-insights) is an app-level surface, not a
                                     Pulse tabpanel — like Dashboard it hands off to the host shell
                                     via a surface pick. Rendered first to match the registry order
