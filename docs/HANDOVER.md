@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-07-29 (latest+41) — agentic executor shipped behind a real spend guard; enterprise blocker named
+
+Commits `f8bc433` (spend guard) · `8ece64e` (executor). **Deployed: `pulseplay` runs `8ece64e`.** Proxy **1543/1543**, playground **2008/2008**.
+
+**Priority order inverted deliberately.** The ask was agentic first, tokenomics second; the project's own rule is no executor before a spend budget. An agent breaks the assumption the no-spend rule leans on — one click can fan out into many model calls — so the guard shipped first and the executor calls it.
+
+**spendGuard** (7 tests): fails closed with no estimate; per-run + daily + step ceilings; **reserve-then-settle** so N concurrent runs cannot each see an empty ledger (that exact case is a test); an unknown actual settles at the RESERVATION, never zero, so a provider omitting usage cannot escape the budget. `GET /assistant/spend` exposes it read-only.
+
+**agenticInvestigate** (8 tests): fixed, reviewable, non-model-authored plan built from the decision's own fields; no write path at all; `effects:{mutatedDecision:false,...}` returned so no UI can imply more; refusal is a normal 429 that costs nothing; a dead backend yields findings-with-errors, never an exception. Wired at `POST /insights/action-insights/:id/investigate`, gated on `can_view_evidence`, and surfaced as an **Investigate** button on the decision card.
+
+**Caught live before shipping:** the first real run made Genie ask a clarifying question — a supplier-scoped rule has no region/category, so the prompt said "the affected area". Questions now carry the decision's headline + issue as context and instruct the space to pick a reasonable reading. Re-verified: both steps returned real SQL.
+
+**THE ENTERPRISE BLOCKER, named not buried (AGENDA `AGENT-OBO`):** steps run under the profile's service credential, so results are scoped to the service identity, not the caller's Unity Catalog grants. Surfaced in-product (`identity.onBehalfOfUser:false` + caveat on the card). Fix before real users: Databricks managed MCP with on-behalf-of-user auth. Secondary: process-local spend ledger needs a shared store for multi-replica; audit rows should carry caller identity.
+
+---
+
 ## 2026-07-29 (latest+40) — CPG/FMCG domain end to end; scoped feed; first-load timer; republished
 
 Commits `28980fe` · `5d75c705`. **Deployed: `pulseplay` runs `5d75c70`, RUNNING.** Playground 2002/2002, proxy 1528/1528, synth 11/11.

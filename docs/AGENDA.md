@@ -8,6 +8,18 @@
 
 Ordered by impact × cost. Each item is independently shippable.
 
+- [ ] **AGENT-OBO — on-behalf-of-user identity (THE enterprise blocker)** — the
+  agentic investigator runs its steps under the PROFILE's service credential,
+  not the calling user's. On a workspace where Unity Catalog grants differ per
+  user, a user can therefore receive data their own grants would deny. Today
+  this is surfaced honestly (`identity.onBehalfOfUser: false` + a caveat shown
+  on the card) and the feature is demo-scoped; before real users get it, route
+  agent steps through **Databricks managed MCP with OBO auth**, which inherits
+  the caller's UC permissions per tool call (see MCP-CONNECTOR). Secondary
+  enterprise items: the spend ledger is process-local (needs a shared store for
+  multi-replica), and agent steps should carry the caller's identity into the
+  audit row, not just the profile name.
+
 - [x] **DEC-UNITS — RESOLVED by user direction (`0c7d293`)** — Roman scale
   stays, enforced via GUIDANCE not code normalization: thousand = `M` (never
   K), million = `MM` (was MN), billion = `B`. Formatters emit MM; cockpit
@@ -74,7 +86,11 @@ Ordered by impact × cost. Each item is independently shippable.
   Lakeview dashboard rendering has no MCP surface — keep the REST spec path.
   Status caveats: Beta/Public Preview, serverless required.
 
-- [ ] **DEC-AGENT — the agentic step on a decision card** — cards today end at a
+- [x] **DEC-AGENT — SHIPPED (`8ece64e`)** — bounded read-only investigation on a
+  governed decision: fixed reviewable plan, spendGuard-gated, fully audited,
+  cannot mutate decision state, fails soft. **Enterprise prerequisite still
+  open: on-behalf-of-user identity** (see AGENT-OBO below). Original entry:
+  **DEC-AGENT — the agentic step on a decision card** — cards today end at a
   governed action POST (rules engine → HITL). The plug-and-play shape is to keep
   the card's producer swappable so a Genie/agent-authored prompt renders through
   the same component, and to add an "investigate this" step that runs a scoped
