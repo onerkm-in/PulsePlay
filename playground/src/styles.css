@@ -2695,3 +2695,8 @@ html, body, #root {
     border-radius: var(--pp-radius-sm);
 }
 .acp__actions { display: flex; justify-content: flex-end; }
+
+/* Pinned-tiles band under a vendor Dashboard board (empty band renders nothing
+   because CanvasGrid returns null with no tiles). */
+.pp-pinned-band { margin-top: 12px; }
+.pp-pinned-band:empty { display: none; margin: 0; }

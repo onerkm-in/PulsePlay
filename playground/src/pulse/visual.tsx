@@ -265,7 +265,7 @@ import { parseAllowedUsers } from "./setupAccessControl";
 // AI Insights and Ask Pulse each talk to a DIFFERENT connector at once.
 import { FEATURE_FLAGS_EVENT } from "../featureFlags";
 import { EChartsRenderer } from '../components/workbench/EChartsRenderer';
-import { buildEChartsOption, humanizeColumnName, formatValueByUnit } from '../lib/buildEChartsOption';
+import { buildEChartsOption, assessChartHonesty, humanizeColumnName, formatValueByUnit } from '../lib/buildEChartsOption';
 import { detectColumnUnit, formatCategoryLabel } from '../visualization/chartAutoPick';
 import { CHART_PALETTES, CHART_PALETTE_EVENT, getActivePaletteId, applyChartPalette } from '../lib/chartPalettes';
 import { addCanvasTile } from '../lib/canvasTiles';
@@ -10380,6 +10380,16 @@ function renderEChartsBody(
     }
 
     // All other types — ECharts.
+    // Honesty gate BEFORE building: measures on scales ≥10^3 apart cannot
+    // share one chart without one of them rendering invisibly small. Three
+    // heuristic patches each fixed a symptom of this and the next Genie
+    // query shape still misled (2026-07-29). Refuse the combined chart and
+    // offer one-measure-at-a-time instead; the Table section below the chart
+    // always shows every value.
+    const honesty = assessChartHonesty(columns, rows);
+    if (!honesty.ok) {
+        return <SingleMeasureChartFallback chartType={chartType} columns={columns} rows={rows} honesty={honesty} />;
+    }
     const option = buildEChartsOption(chartType, columns, rows);
     if (!option) {
         return (
@@ -10394,6 +10404,42 @@ function renderEChartsBody(
     // labels. Combined with EChartsRenderer's ResizeObserver, the chart re-fits
     // when the viewport, zoom, or a side/nav panel changes its box.
     return <EChartsRenderer option={option} height="clamp(220px, 34vh, 400px)" />;
+}
+
+/** Combined chart refused (incommensurable scales) — chart ONE measure at a
+ *  time instead, honestly. The full table below the chart shows everything. */
+function SingleMeasureChartFallback({ chartType, columns, rows, honesty }: {
+    chartType: string;
+    columns: string[];
+    rows: unknown[][];
+    honesty: { reason?: string; measures: string[]; rawMeasures: string[] };
+}) {
+    const [pick, setPick] = React.useState(honesty.rawMeasures[0] || "");
+    const keepCols: number[] = [];
+    columns.forEach((c, i) => {
+        if (c === pick || !honesty.rawMeasures.includes(c)) keepCols.push(i);
+    });
+    const subColumns = keepCols.map(i => columns[i]);
+    const subRows = rows.map(r => keepCols.map(i => r[i]));
+    const option = buildEChartsOption(chartType === "kpi" ? "column" : chartType, subColumns, subRows);
+    return (
+        <div className="gn-chart-honest-fallback">
+            <div className="gn-chart-honest-note" role="note">
+                {honesty.reason}
+            </div>
+            <label className="gn-chart-honest-pick">
+                Chart one measure:{" "}
+                <select value={pick} onChange={(e) => setPick(e.target.value)}>
+                    {honesty.rawMeasures.map((rawName, i) => (
+                        <option key={rawName} value={rawName}>{honesty.measures[i]}</option>
+                    ))}
+                </select>
+            </label>
+            {option
+                ? <EChartsRenderer option={option} height="clamp(220px, 30vh, 380px)" />
+                : <div className="gn-msg-body gn-chart-no-data">Not enough data to chart this measure.</div>}
+        </div>
+    );
 }
 
 const CLUSTERED_COLORS = ["#4793f8", "#f97316", "#22c55e", "#ef4444", "#a855f7", "#eab308"];
@@ -11022,7 +11068,8 @@ function parseKpiDisplayNumber(raw: string | null | undefined): number | null {
     const n = parseFloat(m[0].replace(/,/g, ""));
     if (!Number.isFinite(n)) return null;
     const tail = s.slice(m.index! + m[0].length).trim().toUpperCase();
-    if (/^MN\b/.test(tail)) return n * 1e6;
+    if (/^MM\b/.test(tail)) return n * 1e6; // current convention: MM = million
+    if (/^MN\b/.test(tail)) return n * 1e6; // legacy spelling, kept readable
     if (/^B\b/.test(tail)) return n * 1e9;
     if (/^M\b/.test(tail)) return n * 1e3;   // project convention: M = thousand
     if (/^K\b/.test(tail)) return n * 1e3;

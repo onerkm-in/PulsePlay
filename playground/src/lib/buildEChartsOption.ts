@@ -111,13 +111,71 @@ function extractCategorySeries(columns: string[], rows: unknown[][]): {
     // Collapse Genie's DATE-typed period values ("2024-01-01T00:00:00.000Z")
     // to the column's granularity ("2024" / "Q1 2024" / "Jan 2024").
     const categories = rows.map(r => formatCategoryLabel(columns[labelCol] ?? '', r[labelCol]));
-    const series = numericCols.map(ci => ({
-        name: humanizeColumnName(columns[ci]),
-        rawName: columns[ci],
-        unit: detectColumnUnit(columns[ci]),
-        data: rows.map(r => toNum(r[ci])),
-    }));
+    const series = numericCols.map(ci => {
+        // Suffix-encoded scales: Genie sometimes returns a measure already
+        // divided into billions/millions and says so only in the NAME
+        // ("net_sales_b" = 3.2 meaning $3.20B). Rendered raw, that series is
+        // sub-pixel beside a millions series and its tooltip reads "$3.20" —
+        // both lies. Decode the unambiguous suffixes back to true values.
+        // (Roman-convention "_m" is ambiguous — thousand here, million in the
+        // wild — so it is deliberately NOT decoded.)
+        const raw = columns[ci];
+        const norm = String(raw || "").toLowerCase();
+        const scale = /(_b|_bn|\sb|\sbn)$/.test(norm) ? 1e9
+            : /(_mm|\smm)$/.test(norm) ? 1e6 : 1;
+        const display = scale === 1 ? raw : raw.replace(/[_\s](b|bn|mm)$/i, "");
+        return {
+            name: humanizeColumnName(display),
+            rawName: raw,
+            unit: detectColumnUnit(display),
+            data: rows.map(r => toNum(r[ci]) * scale),
+        };
+    });
     return { categories, series };
+}
+
+/**
+ * Can these series share ONE combined chart without lying?
+ *
+ * The dual-axis split covers exactly two scales: a percent axis and ONE
+ * magnitude axis. When the non-percent series themselves span ≥3 orders of
+ * magnitude — 100x and beyond (e.g. GHG in millions beside net sales in
+ * billions), whichever
+ * one loses the axis renders sub-pixel — a chart that LOOKS complete while
+ * hiding a series. Three heuristic patches in one day each fixed a symptom
+ * of this and the next query shape still misled (2026-07-29). So: refuse the
+ * combined chart and say why; the caller falls back to the table (always
+ * true) plus a single-measure chart picker.
+ */
+export function assessChartHonesty(columns: string[], rows: unknown[][]): {
+    ok: boolean;
+    reason?: string;
+    /** Humanized measure names, for the caller's per-measure picker. */
+    measures: string[];
+    /** Raw column names, index-aligned with `measures`. */
+    rawMeasures: string[];
+} {
+    const d = extractCategorySeries(columns, rows);
+    if (!d) return { ok: true, measures: [], rawMeasures: [] };
+    const measures = d.series.map(s => s.name);
+    const rawMeasures = d.series.map(s => s.rawName);
+    const magnitudes = d.series.filter(s => s.unit !== "percentage");
+    if (magnitudes.length >= 2) {
+        const maxima = magnitudes.map(s => Math.max(...s.data.map(Math.abs)));
+        const hi = Math.max(...maxima), lo = Math.min(...maxima.filter(m => m > 0));
+        // 100x, not 1000x: at a 100x gap the smaller series is under 1% of
+        // the axis - already invisible. (The live repro's gap was ~700x and a
+        // 1e3 cutoff would have waved it through.)
+        if (Number.isFinite(hi) && Number.isFinite(lo) && lo > 0 && hi / lo >= 100) {
+            return {
+                ok: false,
+                reason: "These measures live on scales too far apart to share one chart honestly — one of them would render invisibly small. Pick one measure to chart it truthfully; the table shows everything.",
+                measures,
+                rawMeasures,
+            };
+        }
+    }
+    return { ok: true, measures, rawMeasures };
 }
 
 /** Name + value pairs — for pie, donut, funnel, treemap, kpi. */

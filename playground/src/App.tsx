@@ -19,6 +19,7 @@ import { Icon } from "./pulse/_adapter/Icon";
 import { useEmbedConfig } from "./settings/embedConfigStore";
 import { FirstRunWizard, WizardErrorBoundary, shouldShowWizard, type PersonaKey } from "./components/FirstRunWizard";
 import { SurfaceSwitcher, OverviewNavContext } from "./components/SurfaceSwitcher";
+import { CanvasGrid } from "./visualization/CanvasGrid";
 import { ActionInsightsPanel } from "./components/ActionInsightsPanel";
 import { BundleSwitcher } from "./components/BundleSwitcher";
 import { PaneEmptyState, DashboardIcon } from "./components/PaneEmptyState";
@@ -2833,14 +2834,27 @@ function BITileGrid(props: {
     const { tileMode, vendor, embedConfig, allowlist, allowlistFailClosed, onEvent, onAdapterReady } = props;
     if (tileMode === "1") {
         return (
-            <BIPanel
-                vendor={vendor}
-                embedConfig={embedConfig}
-                allowlist={allowlist}
-                allowlistFailClosed={allowlistFailClosed}
-                onEvent={onEvent}
-                onAdapterReady={(adapter) => onAdapterReady(0, adapter)}
-            />
+            <div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+                <BIPanel
+                    vendor={vendor}
+                    embedConfig={embedConfig}
+                    allowlist={allowlist}
+                    allowlistFailClosed={allowlistFailClosed}
+                    onEvent={onEvent}
+                    onAdapterReady={(adapter) => onAdapterReady(0, adapter)}
+                />
+                {/* Pinned tiles live on the SAME Dashboard page as the vendor
+                    board. "Pin to canvas" previously wrote tiles only the
+                    `native` vendor ever rendered, so with the Lakeview vendor
+                    active a pin vanished ("I pinned the visual but it's not
+                    visible in the dashboard" — 2026-07-29). CanvasGrid renders
+                    nothing when no tiles exist. */}
+                {vendor !== "native" && (
+                    <div className="pp-pinned-band">
+                        <CanvasGrid />
+                    </div>
+                )}
+            </div>
         );
     }
     const tileCount = tileMode === "2" ? 2 : 4;

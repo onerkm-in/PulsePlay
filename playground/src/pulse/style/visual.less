@@ -13082,3 +13082,14 @@ body[theme="dark"] .gn-save-reminder-toast,
 .gn-kpi-hover-rows span { color: var(--pp-text-muted, #5d5d60); }
 .gn-kpi-hover-rows strong { text-align: right; font-variant-numeric: tabular-nums; }
 .gn-kpi-hover-note { margin-top: 6px; font-size: 10px; color: var(--pp-text-subtle, #86868a); }
+
+// Honest chart fallback — combined chart refused for incommensurable scales.
+.gn-chart-honest-fallback { display: flex; flex-direction: column; gap: 10px; }
+.gn-chart-honest-note {
+  font-size: 12.5px; line-height: 1.5; padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(224, 144, 44, 0.10);
+  color: #8a5a15;
+}
+.gn-chart-honest-pick { font-size: 12.5px; }
+.gn-chart-honest-pick select { font: inherit; padding: 4px 8px; }

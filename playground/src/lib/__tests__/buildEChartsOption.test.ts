@@ -3,7 +3,7 @@
 // trends" answer (Order Fill Rate % + GHG tCO2e count on one clustered bar)
 // rendered GHG's 2,500,000 on a percentage axis as "2,500,000.0%".
 import { describe, it, expect } from "vitest";
-import { buildEChartsOption } from "../buildEChartsOption";
+import { buildEChartsOption , assessChartHonesty } from "../buildEChartsOption";
 
 function yAxisFormatter(option: unknown): (v: number) => string {
     const y = (option as { yAxis?: { axisLabel?: { formatter?: (v: number) => string } } }).yAxis;
@@ -89,5 +89,29 @@ describe("OTIF is a percentage (2026-07-29 'where is otif?')", () => {
         const series = opt.series as Array<{ name: string; yAxisIndex?: number }>;
         const otif = series.find(s => /otif/i.test(s.name));
         expect(otif?.yAxisIndex).toBe(1); // the percent axis
+    });
+});
+
+describe("honest-chart gate (CHART-HONEST-FALLBACK)", () => {
+    const cols = ["year", "otif", "ghg_tco2e", "net_sales_b"];
+    const rows = [["2025", 93.4, 2563504, 1.81], ["2026", 94.5, 854419, 1.90]];
+
+    it("decodes suffix-encoded scales to true values (net_sales_b 1.9 -> 1.9e9)", () => {
+        const opt = buildEChartsOption("column", ["year", "net_sales_b"], [["2026", 1.9]]) as Record<string, never>;
+        const s = (opt.series as Array<{ name: string; data: number[] }>)[0];
+        expect(s.data[0]).toBe(1.9e9);
+        expect(s.name).not.toMatch(/\bB\b$/); // suffix stripped from the label
+    });
+
+    it("REFUSES a combined chart when magnitudes span >=10^3 (GHG millions vs sales billions)", () => {
+        const verdict = assessChartHonesty(cols, rows);
+        expect(verdict.ok).toBe(false);
+        expect(verdict.reason).toMatch(/scales too far apart/i);
+        expect(verdict.rawMeasures).toContain("net_sales_b");
+    });
+
+    it("allows percent-beside-one-magnitude-group (the honest dual-axis case)", () => {
+        const verdict = assessChartHonesty(["year", "otif", "ghg_tco2e"], [["2026", 94.5, 854419]]);
+        expect(verdict.ok).toBe(true);
     });
 });

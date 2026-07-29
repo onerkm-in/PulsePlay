@@ -8,8 +8,12 @@
 
 Ordered by impact × cost. Each item is independently shippable.
 
-- [ ] **CHART-HONEST-FALLBACK — STOP the whack-a-mole (decision, 2026-07-29
-  night)** — three symptom fixes in one day (tooltip %, dual axes, OTIF
+- [x] **CHART-HONEST-FALLBACK — SHIPPED and live-verified**: suffix-encoded
+  columns decode to true values (net_sales_b 1.9 -> $1.9B); when magnitudes
+  span >=100x the combined chart is REFUSED with a plain-language note + a
+  one-measure-at-a-time picker (Net Sales now charts truthfully at $B scale);
+  the table always shows everything. Pinned by tests. Original decision:
+  **CHART-HONEST-FALLBACK (decision, 2026-07-29 night)** — three symptom fixes in one day (tooltip %, dual axes, OTIF
   acronym) and the next query shape still hid a series (Net Sales B in
   billions-units). Root cause is unfixable by more heuristics: heuristically
   charting ARBITRARY agent output with mixed units and 10^3+ magnitude gaps
@@ -69,14 +73,23 @@ Ordered by impact × cost. Each item is independently shippable.
   comments may still carry industrial vocabulary. Audit and update via COMMENT
   ON; the 4 Genie metric views (mtr_pp_syn_ltm_*) exist and are the reference.
 
-- [ ] **CANVAS-ON-DASHBOARD — pinned tiles invisible on the Lakeview Dashboard**
+- [x] **CANVAS-ON-DASHBOARD — SHIPPED**: pinned tiles render in a band under
+  the vendor board on the same Dashboard page (verified live: pin from Ask
+  Pulse -> visible under the Lakeview board). Second pin channel (decision-
+  canvas sections) reconciliation still listed under SHELL-UNIFY scope.
+  Original: **CANVAS-ON-DASHBOARD — pinned tiles invisible on the Lakeview Dashboard**
   — "Pin to canvas" writes native-canvas tiles (localStorage) rendered only by
   the native vendor board; with databricks-aibi active the Dashboard shows no
   pins (user report). Fix: render the pinned board below the Lakeview render;
   also reconcile the TWO pin channels (canvas-tiles vs decision-canvas
   sections/MyCanvasRegion).
 
-- [ ] **EXEC-SUMMARY-TONE — red pill on a good move + stale MN (user screenshot)**
+- [x] **EXEC-SUMMARY-TONE — RESOLVED as stale cache**: a fresh briefing on the
+  current build shows zero MN, zero K, and no red-on-up pills (deltas render
+  plain green) — the screenshot predated the notation + direction-of-goodness
+  guidance fixes. Also fixed while verifying: the KPI display parser did not
+  understand the NEW `MM` suffix (read legacy MN only), mis-scaling relative
+  bars by 10^6. Original: **EXEC-SUMMARY-TONE (user screenshot)**
   — a Net Sales increase pill rendered red and the exec summary said "MN";
   investigation was interrupted (fresh briefing generate got cut). Reproduce
   with a fresh briefing, inspect the pill's tone classes (pillColorClass +
