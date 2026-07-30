@@ -25,7 +25,7 @@ import { BundleSwitcher } from "./components/BundleSwitcher";
 import { PaneEmptyState, DashboardIcon } from "./components/PaneEmptyState";
 import type { SurfaceId } from "./surfaceRegistry";
 import { isSurfaceId, DEFAULT_LANDING_SURFACE } from "./surfaceRegistry";
-import { syncDeploymentDefaults } from "./lib/deploymentDefaults";
+import { syncDeploymentDefaults, resetEmbedConfigToDeployment } from "./lib/deploymentDefaults";
 import { useExperienceMode } from "./experience/experienceMode";
 import { DecisionCanvasShell } from "./experience/DecisionCanvasShell";
 import {
@@ -1149,10 +1149,20 @@ function PlaygroundApp(): React.ReactElement {
     // both axes lived only in localStorage. Never overrides an explicit choice,
     // and `/assistant/profiles` is routing metadata - no warehouse, no model -
     // so it does not breach no-spend-without-intent.
+    const [embedMismatch, setEmbedMismatch] = useState<{ storedReportId: string; expectedReportId: string } | null>(null);
     useEffect(() => {
         void syncDeploymentDefaults().then(r => {
             if (r.seededProfile) setActiveConnector(r.seededProfile);
+            // Reported, never auto-corrected: the Dashboard shows a one-click
+            // adopt banner. A browser configured before the seed-marker (or
+            // hand-pointed elsewhere) otherwise keeps rendering an OLD report
+            // forever with no visible way out - the Superstore embed on the
+            // hosted app (user screenshot 2026-07-30).
+            setEmbedMismatch(r.embedMismatch);
         }).catch(() => { /* non-fatal; surfaces report their own errors */ });
+    }, []);
+    const adoptDeploymentDashboard = useCallback(() => {
+        if (resetEmbedConfigToDeployment()) setEmbedMismatch(null);
     }, []);
 
     useEffect(() => {
@@ -1621,6 +1631,8 @@ function PlaygroundApp(): React.ReactElement {
                                     allowlistFailClosed={allowlistFailClosed}
                                     onEvent={handleBIEvent}
                                     onAdapterReady={handleBIAdapterReady}
+                                    embedMismatch={embedMismatch}
+                                    onAdoptDeployment={adoptDeploymentDashboard}
                                 />
                             ) : (
                                 // Shares the <PaneEmptyState> shell with the AI empty
@@ -2830,11 +2842,27 @@ function BITileGrid(props: {
     allowlistFailClosed?: boolean;
     onEvent: (e: BIEvent) => void;
     onAdapterReady: (index: number, adapter: BIAdapter | null) => void;
+    /** Deployment-vs-browser dashboard mismatch (reported by
+     *  syncDeploymentDefaults) + the one-click adopt. */
+    embedMismatch?: { storedReportId: string; expectedReportId: string } | null;
+    onAdoptDeployment?: () => void;
 }): React.ReactElement {
     const { tileMode, vendor, embedConfig, allowlist, allowlistFailClosed, onEvent, onAdapterReady } = props;
     if (tileMode === "1") {
         return (
             <div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+                {props.embedMismatch && (
+                    <div className="pp-embed-mismatch" role="status">
+                        <span>
+                            This browser is showing an <b>older report</b>, not the dashboard this
+                            deployment ships. Your saved choice was kept — nothing was changed
+                            without you.
+                        </span>
+                        <button type="button" className="btn btn-primary btn-sm" onClick={props.onAdoptDeployment}>
+                            Switch to the current dashboard
+                        </button>
+                    </div>
+                )}
                 <BIPanel
                     vendor={vendor}
                     embedConfig={embedConfig}

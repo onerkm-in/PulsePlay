@@ -124,6 +124,22 @@ export function describeEmbedCoherence(
     stored: Record<string, unknown> | null | undefined,
     target: ProfileMeta | null | undefined,
 ): { coherent: true } | { coherent: false; storedReportId: string; expectedReportId: string } {
+    // Lakeview era: the deployment declares a native dashboard, but this
+    // browser holds an UNMARKED config (written before the seed-marker
+    // existed, or hand-authored) that does not reference it — e.g. the old
+    // Superstore Power BI report still rendering on the hosted app
+    // (user screenshot 2026-07-30). Report it so the Dashboard can offer the
+    // one-click adopt; never auto-correct.
+    const declaredLakeview = String(target?.lakeviewDashboardId || "").trim();
+    if (declaredLakeview && stored && Object.keys(stored).length > 0
+        && stored.__seededFromDeployment !== true
+        && String(stored.dashboardId || "") !== declaredLakeview) {
+        return {
+            coherent: false,
+            storedReportId: String(stored.id || stored.reportId || stored.dashboardId || "(unknown)"),
+            expectedReportId: declaredLakeview,
+        };
+    }
     const storedId = String(stored?.id || stored?.reportId || "").trim();
     const expected = String(target?.powerbiReportId || "").trim();
     if (!storedId || !expected || storedId === expected) return { coherent: true };
@@ -138,7 +154,24 @@ export function describeEmbedCoherence(
  */
 export function resetEmbedConfigToDeployment(): boolean {
     const target = _deploymentTarget;
-    if (!target?.powerbiReportId) return false;
+    if (!target) return false;
+    // Lakeview first — same preference as seeding: the all-Databricks pair.
+    if (target.lakeviewDashboardId) {
+        const next: Record<string, unknown> = {
+            dashboardId: target.lakeviewDashboardId,
+            __seededFromDeployment: true,
+        };
+        if (target.workspaceUrl) next.workspaceUrl = target.workspaceUrl;
+        if (target.name) next.assistantProfile = target.name;
+        setEmbedConfig(next as never);
+        // Explicit user click → switching the vendor IS the requested action.
+        try {
+            window.localStorage.setItem("pulseplay:bi-vendor", "databricks-aibi");
+            window.dispatchEvent(new CustomEvent("pulseplay:bi-vendor-change", { detail: { vendor: "databricks-aibi" } }));
+        } catch { /* swallow */ }
+        return true;
+    }
+    if (!target.powerbiReportId) return false;
     const next: Record<string, unknown> = { id: target.powerbiReportId };
     if (target.powerbiGroupId) next.groupId = target.powerbiGroupId;
     setEmbedConfig(next);

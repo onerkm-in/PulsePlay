@@ -185,3 +185,22 @@ describe("syncDeploymentDefaults", () => {
         expect(window.localStorage.getItem("pulseplay:active-ai-profile")).toBeNull();
     });
 });
+
+describe("stale-browser vs declared Lakeview (2026-07-30 hosted-app screenshot)", () => {
+    const target = { name: "scm", type: "genie", lakeviewDashboardId: "lv-1", workspaceUrl: "https://ws" };
+
+    it("reports a mismatch for an UNMARKED config that ignores the declared dashboard", () => {
+        const v = describeEmbedCoherence({ id: "old-superstore-report" }, target);
+        expect(v.coherent).toBe(false);
+    });
+
+    it("stays quiet for a marker-bearing seed of the declared dashboard", () => {
+        const v = describeEmbedCoherence({ dashboardId: "lv-1", __seededFromDeployment: true }, target);
+        expect(v.coherent).toBe(true);
+    });
+
+    it("stays quiet for an empty config (fresh browser seeds instead)", () => {
+        expect(describeEmbedCoherence({}, target).coherent).toBe(true);
+        expect(describeEmbedCoherence(null, target).coherent).toBe(true);
+    });
+});
