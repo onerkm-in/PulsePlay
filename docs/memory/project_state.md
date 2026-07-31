@@ -33,6 +33,19 @@ clean.
 - **Doc drift closed:** HANDOVER had stopped at `8ece64e` while 9 commits
   shipped after it; retro-logged. `CHART-MISSING-SERIES` was marked half-open
   but `c0dd32c` had already closed it — the AGENDA contradicted itself.
+- **Two CI gates were decorative — found by reading RUN HISTORY, not workflow
+  files.** `dependency-review`: 12 runs, 12 failures, zero passes (needs
+  Dependency Graph; API 403s here). `smoke.yml`: failing every run for days
+  while BLOCKERS.md said "CLEARED" — asserted `surface-connector-*` dropdowns
+  deleted from the product. Both fixed; **all four workflows green on main**
+  (supply-chain, smoke, tests, codeql).
+- `scripts/check-licenses.mjs` is the licence gate that works without any
+  GitHub feature — 1,584 licensed deps, all permissive, SPDX logic unit-tested.
+- `npm sbom` can never cover `enablers/pulse-pbi` (pbiviz 4-segment version is
+  not semver). Reported, not fatal. **Do not change that version.**
+- **OWNER ACTION OPEN (`SEC-REPO-SETTINGS`):** repo is PUBLIC with
+  `dependency_graph`, `secret_scanning`, `push_protection` and
+  `dependabot_security_updates` all disabled.
 - Deployed app is **STOPPED** and 13 commits behind; not restarted (deploy
   waits for explicit signal).
 
