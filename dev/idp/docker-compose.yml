@@ -1,0 +1,43 @@
+# Local OIDC identity provider for development.
+#
+# BLOCKERS.md #3 lists "prove Power BI RLS under On-Behalf-Of" as externally
+# blocked because it needs a real IdP, and the Okta pilot is deferred to a PROD
+# gate. This is a real IdP — Keycloak issues genuine RS256 JWTs against a real
+# JWKS endpoint — so the blocker becomes a local task rather than a wait.
+#
+# It ships NOTHING. No dependency enters proxy/ or playground/, nothing reaches
+# an artifact, nothing runs in CI. It is a container you start when you want to
+# exercise the authenticated path, and the org's Entra/Okta takes its place in
+# production unchanged, because the proxy verifies JWKS/issuer/audience
+# generically rather than knowing anything about Keycloak.
+#
+#   docker compose -f dev/idp/docker-compose.yml up -d
+#
+# See README.md in this directory for the proxy env vars and how to mint a token.
+
+services:
+  keycloak:
+    # Pinned. A floating tag on an auth service is how a dev convenience quietly
+    # becomes a different piece of software one morning.
+    image: quay.io/keycloak/keycloak:26.0.7
+    container_name: pulseplay-idp
+    command: ["start-dev", "--import-realm"]
+    environment:
+      # Dev-only bootstrap credentials for the Keycloak admin console itself.
+      # start-dev mode refuses to run in production and says so on boot; that is
+      # the intended guard rail, not something to work around.
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      # Bound to loopback deliberately — "7010:8080" would publish an auth
+      # server on every interface of the dev machine, including whatever
+      # network it is on. 7010 keeps it beside the project's 7000/7001.
+      - "127.0.0.1:7010:8080"
+    volumes:
+      - ./realm-pulseplay.json:/opt/keycloak/data/import/realm-pulseplay.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '\"status\": \"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 20

@@ -1,0 +1,111 @@
+{
+    "realm": "pulseplay",
+    "enabled": true,
+    "displayName": "PulsePlay (dev)",
+    "sslRequired": "none",
+    "registrationAllowed": false,
+    "loginWithEmailAllowed": true,
+    "accessTokenLifespan": 1800,
+
+    "roles": {
+        "realm": [
+            {
+                "name": "supply-chain-planner",
+                "description": "Proposer. personaGate matches /planner|analyst|supply/ and resolves this to 'Supply Chain Planner'."
+            },
+            {
+                "name": "supply-chain-manager",
+                "description": "Approver. personaGate matches /manager|approver|s&op|director|lead/ FIRST, so this resolves to 'Supply Chain Manager'."
+            }
+        ]
+    },
+
+    "clients": [
+        {
+            "clientId": "pulseplay-proxy",
+            "enabled": true,
+            "protocol": "openid-connect",
+
+            "publicClient": true,
+            "directAccessGrantsEnabled": true,
+            "standardFlowEnabled": true,
+            "serviceAccountsEnabled": false,
+
+            "redirectUris": [
+                "http://127.0.0.1:7001/*",
+                "http://localhost:7001/*"
+            ],
+            "webOrigins": [
+                "http://127.0.0.1:7001",
+                "http://localhost:7001"
+            ],
+
+            "protocolMappers": [
+                {
+                    "name": "realm roles as a top-level roles claim",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-usermodel-realm-role-mapper",
+                    "consentRequired": false,
+                    "config": {
+                        "multivalued": "true",
+                        "claim.name": "roles",
+                        "jsonType.label": "String",
+                        "access.token.claim": "true",
+                        "id.token.claim": "false",
+                        "userinfo.token.claim": "false"
+                    }
+                },
+                {
+                    "name": "audience",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-audience-mapper",
+                    "consentRequired": false,
+                    "config": {
+                        "included.client.audience": "pulseplay-proxy",
+                        "access.token.claim": "true",
+                        "id.token.claim": "false"
+                    }
+                }
+            ]
+        }
+    ],
+
+    "users": [
+        {
+            "username": "planner",
+            "enabled": true,
+            "emailVerified": true,
+            "email": "planner@pulseplay.local",
+            "firstName": "Demo",
+            "lastName": "Planner",
+            "credentials": [
+                { "type": "password", "value": "planner", "temporary": false }
+            ],
+            "realmRoles": ["supply-chain-planner"]
+        },
+        {
+            "username": "manager",
+            "enabled": true,
+            "emailVerified": true,
+            "email": "manager@pulseplay.local",
+            "firstName": "Demo",
+            "lastName": "Manager",
+            "credentials": [
+                { "type": "password", "value": "manager", "temporary": false }
+            ],
+            "realmRoles": ["supply-chain-manager"]
+        },
+        {
+            "username": "norole",
+            "enabled": true,
+            "emailVerified": true,
+            "email": "norole@pulseplay.local",
+            "firstName": "Demo",
+            "lastName": "Norole",
+            "credentials": [
+                { "type": "password", "value": "norole", "temporary": false }
+            ],
+            "realmRoles": []
+        }
+    ]
+}
