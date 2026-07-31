@@ -102,3 +102,29 @@ scripts/.azure-appservice.json
 scripts/.*.log
 # Runtime spend ledger (spendGuard) — process state, never source
 proxy/.pp-spend-ledger.json
+
+# Design mockups and data contracts — deliberately NOT published (2026-07-31).
+#
+# This repository is PUBLIC while the project's own posture is inner-source-first
+# (CLAUDE.md, "Path C"). The sensitive tree is data-contracts/: it carries a
+# Databricks workspace id, the org's real catalog/schema/table/column names with
+# row counts, and UC column comments that name the org outright ("Denominator
+# for FR PepsiCo") — 46 occurrences in one metric-view contract alone.
+#
+# It holds ZERO real data values — the privacy attestation in its MANIFEST was
+# checked and holds (categorical values withheld, masked character-class
+# patterns only, synthetic-generation rules). Schema TOPOLOGY plus the org's
+# name on a public repo is still an org decision, and the decision was no.
+#
+# The Design/ extracts were checked too and carry no company references; they
+# are ignored alongside because they are working inputs, not deliverables, and
+# an owner decision covered both. (The Design/audit-findings files that were
+# ALREADY tracked before this date stay tracked — git history keeps them
+# regardless, and they are clean.)
+#
+# Everything stays on disk and stays usable — Design/unified-extract is the
+# reference the design work is matched against. Ignoring keeps it off the
+# internet and out of `git status` noise. Revisit if the repo goes private.
+Design/
+data-contracts/
+data-contracts.zip
