@@ -5,6 +5,42 @@
 
 ---
 
+## 2026-07-31 (latest+42) — open-source brought in, chosen for enterprise safety; four real CVEs closed
+
+Commits `e434640` · `0507084` · `76b29e4` · `034250f`. Proxy **1553/1553** (88 suites, +10), playground **2019/2019** (157 files), evals **23/23**, tsc + build clean.
+
+**Doc drift closed first, because it was hiding work.** HANDOVER's top entry stopped at `8ece64e` while NINE commits had shipped after it — the whole chart-honesty arc through 2026-07-30. Retro-logged at the bottom of this entry. AGENDA was current; `docs/memory/project_state.md` was staler than both.
+
+**The ask was open-source that is safe for enterprise use, so the answer got ranked by risk shape, not by feature list.** Three tiers: (A) out-of-process, dev/CI only — ships nothing, near-zero risk; (B) in-process library — enters the dependency tree; (C) a new production service — you now own a second product's security posture. Everything brought in is Tier A. Superset, Langfuse and a flag-service provider were explicitly held back as Tier C, needing a named ops owner.
+
+**Before adding anything, the existing baseline got audited — and it was leaking.** `dependency-review.yml` claimed in its own comment to block "disallowed-license dependencies" and did not: there was no `allow-licenses` key, only `fail-on-severity`. It described a control that did not exist. Worse, an audit sweep found **real advisories in code that ships**: proxy `js-yaml` quadratic-CPU (high), `qs` stringify DoS, `body-parser` limit bypass; and desktop `http-proxy-middleware` **CRLF field injection + Host-header backend routing bypass** (high) — the one genuinely security-relevant finding, not a DoS. All fixed in-range by `npm audit fix`, no `--force`, no `package.json` edit. **All four runtime trees are now 0/0/0/0.**
+
+**Deliberately NOT fixed, and named rather than buried:** the dev tree still reports ~19 entries that are all one advisory (`GHSA-mh99-v99m-4gvg`, brace-expansion DoS) fanning through jest's minimatch/glob chain. Fixed range is `>5.0.7`; jest resolves 1.x/2.x. No in-range fix exists — only `--force`, which breaks the test runner. So the CI gate blocks on `--omit=dev` and reports the full tree non-blocking, with that exact advisory named in the workflow so a dev finding of any OTHER shape gets promoted rather than silently passing.
+
+**`supply-chain.yml`** closes the other half: `dependency-review` is `on: pull_request`, so it only ever sees a diff — a CVE disclosed against something merged last month was caught by nothing. Now weekly (Mondays, a day ahead of Dependabot), on push to main, and on demand. Built **only from npm built-ins** (`npm audit`, `npm sbom`) and GitHub's own actions: a supply-chain workflow that itself pulls an unpinned third-party action is theatre, since CI actions run with repo credentials and that class of action has been compromised in the wild. Anything added later gets pinned to a full commit SHA. Emits a CycloneDX SBOM per package.
+
+**The licence allowlist is evidence-derived, not templated.** A sweep of all four lockfiles found **1,556 packages** across MIT / ISC / Apache-2.0 / BSD / MPL-2.0 / BlueOak / 0BSD / CC-BY-4.0 / MIT-0 / CC0 / Python-2.0 / Unlicense and **zero GPL, AGPL or SSPL** — so it is enforceable today without breaking one dependency. Because `dependency-review` inspects only what a PR CHANGES, adding it cannot retroactively fail anything merged.
+
+**`evals/` — the QUALITY.md gap, half closed.** Golden cases ask a question in natural language and carry the SQL that independently establishes the true answer; the harness asks the connector, runs the reference SQL against the same warehouse, and requires agreement within a stated tolerance. This check already happened — as a person doing arithmetic by hand during headed validation. It also checks **notation**, which nothing in the build could previously catch: the Roman scale is enforced by GUIDANCE not code (`0c7d293`), so a DEC-UNITS regression had no gate at all. A notation violation fails the run even when the magnitude agreed.
+
+**Zero dependencies, deliberately.** The eval this project needs is numeric reconciliation against a warehouse, which no off-the-shelf harness does natively — promptfoo would still have meant a custom provider AND a custom assertion, i.e. all of this code plus a few hundred transitive packages. The lean surface (8 runtime packages in playground, 3 in proxy) is a real security property. When LLM-as-judge assertions are wanted, that is when a tool earns its tree.
+
+**Spend discipline held:** `run-live.mjs` is an explicit command only — no CI job, no schedule, no timer — and it fetches ground truth BEFORE the model call, so an uncheckable case costs nothing. The 23 credential-free tests do run in CI, matching how `smoke.yml` already splits.
+
+**`dev/idp/` — Keycloak, which turns BLOCKERS #3 from external into local.** `PROXY_AUTH_MODE=idp` was shipped and fail-closed-tested but had never met an actual token issuer. Out-of-process and dev-only: no package enters `proxy/` or `playground/`, nothing reaches an artifact, nothing runs in CI, and Entra/Okta drops in by changing three env vars because the proxy verifies JWKS/issuer/audience generically. Loopback-bound, pinned to `26.0.7`. Three users — planner, manager, and **norole**, the negative test where an authz bug would look like a working login.
+
+**TRIPWIRE, now pinned by 10 tests (`proxy/tests/idpClaimShape.test.js`):** Keycloak puts realm roles under `realm_access.roles`; `normalizeIdpUserClaims` reads a **top-level `roles`** claim, Entra-style. Nothing errors — every user authenticates, every token verifies, and everyone silently resolves to Planner by the least-privilege default. A Manager who cannot approve then looks like a bug in our code rather than a missing protocol mapper. Same shape for audience: Keycloak's default `aud` is `account`, so every token would be rejected until the audience mapper runs.
+
+**NOT VERIFIED END TO END: docker is not installed on this box.** The container was never booted, no live token was minted. Config parses, the claim-shape contract is tested, the compose file and realm are written from the proxy's actual behaviour — but the first person with docker should run it and record the result here.
+
+**Scope stated honestly:** Keycloak proves IdP verification, issuer/audience enforcement and persona resolution from verified claims. It does NOT prove Power BI RLS end to end (still needs an RLS dataset), and it does NOT touch `AGENT-OBO` — Databricks on-behalf-of-user needs managed MCP, and no IdP fixes that.
+
+**RETRO-LOG — the nine commits that had no entry** (`30cba97`→`b2777bb`, 2026-07-29/30): `18cc6a8` new region cards overflowed a phone viewport (regression); `47db2e5` spend ledger moved out of source into runtime state; `4d95a80` mixed-unit series got their own axis and their own tooltip unit; `3d968a7` Lakeview counters colour-coded by DECLARED data-fact thresholds (VIZ-DECLARED slice 2); `030e3d8` OTIF classified as a percentage — KPI acronyms (otif/ofr/mape/accuracy/utilization/availability/adherence) no longer plot sub-pixel on a millions axis; `30c365a` + `c0dd32c` **CHART-HONEST-FALLBACK** — suffix-encoded scales decode (`net_sales_b` 1.9 → $1.9B), and when non-percent measures span ≥100× the combined chart is REFUSED with a plain-language note plus a one-measure picker, table always true beneath; threshold set at 100× because the live repro's gap was ~700× and a 1000× cutoff would have waved it through; `b2777bb` stale browsers get a one-click way back to the deployment's board. **AGENDA correction:** `CHART-MISSING-SERIES` was still marked half-open listing "Net Sales B" as the remaining case — `c0dd32c` closed exactly that and says so ("Verified live on the exact 5-measure repro"). Marked closed.
+
+**Deployment note:** the `pulseplay` Databricks App is `compute: STOPPED` / `state: UNAVAILABLE` and its last deployment ran `8ece64e`, now 13 commits behind. Not restarted — deploy waits for an explicit signal.
+
+---
+
 ## 2026-07-29 (latest+41) — agentic executor shipped behind a real spend guard; enterprise blocker named
 
 Commits `f8bc433` (spend guard) · `8ece64e` (executor). **Deployed: `pulseplay` runs `8ece64e`.** Proxy **1543/1543**, playground **2008/2008**.

@@ -1,9 +1,40 @@
 ---
 name: PulsePlay current state
-description: As of 2026-07-24 (evening) - branch design/nav-consistency at 94db4ba - ALL GREEN - playground 1950/1950, tsc clean. Headed E2E on a FRESH profile against live Genie (first-run wizard -> probe -> auto-briefing -> chat -> Decisions) landed the in-flight formatting/nav work + 4 surfacing-fix commits (doubled status-chip emoji, raw ISO period labels, decision-card precision/punctuation, false Illustrative advisory on cached Genie briefings, Genie card now Verified live, bundle pairs re-keyed genie + native pairs added). Earlier 2026-07-24: catalogue curation to PBI+Genie; 2026-07-23: three connectors live on dbc-f88d29ce-4aa2. Historical arcs in body.
+description: As of 2026-07-31 - branch design/nav-consistency at 034250f - ALL GREEN - proxy 1553/1553 (88 suites), playground 2019/2019 (157 files), evals 23/23, tsc + build clean. Enterprise-safe OSS brought in - four real shipping CVEs fixed (all runtime trees 0/0/0/0), evidence-derived licence gate + scheduled scan + SBOM from npm built-ins only, zero-dep answer-reconciliation harness in evals/, Keycloak dev IdP in dev/idp/ (NOT booted - no docker on this box). Nine commits of chart-honesty work retro-logged. Historical arcs in body.
 type: project
 originSessionId: current
 ---
+
+**Current state - 2026-07-31 (enterprise-safe OSS; supply chain hardened):**
+Branch `design/nav-consistency` at `034250f`. **All green:** proxy **1553/1553**
+(88 suites), playground **2019/2019** (157 files), **evals 23/23**, tsc + build
+clean.
+
+- **Four real advisories in SHIPPING code, fixed** (`e434640`): proxy js-yaml
+  (high) / qs / body-parser, desktop http-proxy-middleware CRLF injection +
+  Host-header routing bypass (high). All in-range, no `--force`. **All four
+  runtime trees now 0/0/0/0.**
+- **`dependency-review.yml` was lying** — its comment claimed licence blocking
+  with no `allow-licenses` key. Now an evidence-derived permissive allowlist
+  (1,556 packages swept; zero GPL/AGPL/SSPL). New `supply-chain.yml` scans the
+  DEFAULT branch weekly + SBOM. **Built only from npm built-ins + GitHub's own
+  actions — no third-party action is trusted.**
+- **Gate blocks on `--omit=dev`.** The dev tree's ~19 findings are ONE advisory
+  (`GHSA-mh99-v99m-4gvg`) with no in-range fix for jest; named explicitly in
+  the workflow so a different dev finding gets promoted, not waved through.
+- **`evals/`** — golden cases carry reference SQL; harness requires the
+  connector's answer to agree with the warehouse, and gates Roman-scale
+  notation (which had NO regression gate, being guidance not code). Zero
+  dependencies on purpose. `run-live.mjs` is explicit-invocation only.
+- **`dev/idp/`** — Keycloak, dev-only, unblocks the IdP half of BLOCKERS #3.
+  **NOT booted: no docker on this box.** Tripwire pinned by 10 tests —
+  Keycloak emits `realm_access.roles`, the proxy reads top-level `roles`;
+  nothing errors, everyone silently becomes Planner.
+- **Doc drift closed:** HANDOVER had stopped at `8ece64e` while 9 commits
+  shipped after it; retro-logged. `CHART-MISSING-SERIES` was marked half-open
+  but `c0dd32c` had already closed it — the AGENDA contradicted itself.
+- Deployed app is **STOPPED** and 13 commits behind; not restarted (deploy
+  waits for explicit signal).
 
 **Current state - 2026-07-29 evening (beast-mode pass; all 5 UIs live-verified):**
 Branch `design/nav-consistency` at `0f03a27` (+ docs). **All green:** playground

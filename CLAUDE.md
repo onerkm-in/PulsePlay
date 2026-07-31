@@ -190,7 +190,9 @@ These constraints travel with the code under `playground/src/pulse/*` because Pu
 
 ## Status
 
-PulsePlay is past the original scaffold. Latest local validation (verified 2026-06-08, HEAD `76682d8`): **proxy 1274/1274** (66 suites; +25 from connector-plugin Phase A), **playground 1926/1926** (143 files), lint clean (`tsc --noEmit`), `vite build` clean (1128 modules). Caveat: tests assert output SHAPE, not answer correctness — there is no eval/hallucination harness (see [docs/QUALITY.md](docs/QUALITY.md)). "All green" ≠ "answers are right."
+PulsePlay is past the original scaffold. Latest local validation (verified 2026-07-31, HEAD `034250f`): **proxy 1553/1553** (88 suites), **playground 2019/2019** (157 files), **evals 23/23**, lint clean (`tsc --noEmit`), `vite build` clean. Caveat, now narrower but still real: tests assert output SHAPE, plus — since 2026-07-31 — a small number of ANSWERS. [`evals/`](evals/README.md) reconciles a connector's answer against the warehouse via reference SQL and gates the Roman-scale notation convention, but there is still no hallucination detection and no semantic/judge scoring, and the golden set is four SCM cases against one connector (see [docs/QUALITY.md](docs/QUALITY.md)). "All green" still ≠ "answers are right."
+
+Supply chain (2026-07-31): all four runtime dependency trees are clean at high/critical; `dependency-review` enforces an evidence-derived permissive licence allowlist; `supply-chain.yml` scans the default branch weekly and emits a CycloneDX SBOM, built only from npm built-ins and GitHub's own actions. The dev-tree exemption is one named advisory with no in-range fix for jest — not a blanket pass.
 
 Connector axis (X) declares **ten backend code paths**: Genie / Azure OpenAI chat / Azure OpenAI analytics / Bedrock RAG / Bedrock direct / Foundation Model / Supervisor / Supervisor-local / ResponsesAgent / **Power BI semantic-model (no-LLM)** — plus the **Power BI Q&A embed surface** at `/powerbi/qna` (Microsoft's NLP, runs in MS tenant; PulsePlay mints embed token only).
 

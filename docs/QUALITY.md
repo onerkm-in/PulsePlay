@@ -8,8 +8,9 @@
 
 ### 1. Structural correctness (automated)
 
-- **1243 jest tests in `proxy/`** (verified 2026-06-06, HEAD `d4b534c`), covering profile resolution, OAuth M2M flow, X-Request-Id correlation, rate limiting, PII redaction, DML keyword blocking, identifier sanitization, supervisor-local fan-out, validator framework, foundation model client, bedrock signing, connector probe, discovery-context injection, pack prompt injection, Power BI embed-token flow, Power BI deterministic semantic-model templates, Power BI Q&A token minting, metadata-read rate-limit exemptions, analytics paths, the PX1 client identity contract, G3 governance attestation route wiring, admin auth-mode parity, SQL preview CTE validation, streaming error redaction, SS2 smoke-fixture profile, and FW1 query-result fixture shape.
-- **1926 vitest tests in `playground/`** (incl. bi-adapter conformance; verified 2026-06-06, HEAD `9162dab`), covering BIAdapter conformance, generic iframe behavior, Power BI adapter behavior including secure embed preview and developer snapshots, Tableau/Qlik/Looker iframe stubs, native adapter skeleton guardrails, native governance fail-closed behavior, PulseShell host behavior, health-probe single-flight caching, performance levers, discovery probe status, Power BI Q&A client behavior, AI Insights output polish, card-style Insights rendering, raw-data Excel export helpers, AISidebar, pack preset merge, PII redaction, layout surface availability, Databricks source refs, governance attestation shape validation, native canvas/fusion, G5 BI surface mode, Quick Setup embed config integrity, FW1 AISidebar-to-native envelope mapping, and the pure visualization result-to-chart pipeline.
+- **1553 jest tests in `proxy/`** (88 suites; verified 2026-07-31, HEAD `034250f`), covering profile resolution, OAuth M2M flow, X-Request-Id correlation, rate limiting, PII redaction, DML keyword blocking, identifier sanitization, supervisor-local fan-out, validator framework, foundation model client, bedrock signing, connector probe, discovery-context injection, pack prompt injection, Power BI embed-token flow, Power BI deterministic semantic-model templates, Power BI Q&A token minting, metadata-read rate-limit exemptions, analytics paths, the PX1 client identity contract, G3 governance attestation route wiring, admin auth-mode parity, SQL preview CTE validation, streaming error redaction, SS2 smoke-fixture profile, and FW1 query-result fixture shape.
+- **23 node:test tests in `evals/`** (verified 2026-07-31) covering the credential-free half of the answer-correctness harness — number extraction including the Roman-scale convention, notation-violation detection, tolerance, and ground-truth column resolution. See §2 below for what this does and does not prove.
+- **2019 vitest tests in `playground/`** (157 files, incl. bi-adapter conformance; verified 2026-07-31, HEAD `034250f`), covering BIAdapter conformance, generic iframe behavior, Power BI adapter behavior including secure embed preview and developer snapshots, Tableau/Qlik/Looker iframe stubs, native adapter skeleton guardrails, native governance fail-closed behavior, PulseShell host behavior, health-probe single-flight caching, performance levers, discovery probe status, Power BI Q&A client behavior, AI Insights output polish, card-style Insights rendering, raw-data Excel export helpers, AISidebar, pack preset merge, PII redaction, layout surface availability, Databricks source refs, governance attestation shape validation, native canvas/fusion, G5 BI surface mode, Quick Setup embed config integrity, FW1 AISidebar-to-native envelope mapping, and the pure visualization result-to-chart pipeline.
 - **93 vitest tests in `enablers/pulse-pbi/`** in the latest recorded 2026-05-21 validation, now covering PB1a shared-proxy headers/routes/result parsing in addition to the existing Pulse PBI unit surface. Lint and `pbiviz package` also pass locally, but the `pbiviz` toolchain is not yet pinned in the enabler lockfile.
 
 These tests assert the code emits the right SHAPE of output (correct prompt structure, correct cache key, correct sanitization, correct API call). They do NOT assert that the AI's natural-language answer is factually correct on a given dataset.
@@ -36,13 +37,31 @@ The old Power BI visual has **37 visual test files** under `genieChatVisual/test
 
 PulsePlay has new tests, but those 37 old tests are not yet ported. This is the single biggest parity gap because it means mature behavior exists without equivalent browser-host regression coverage.
 
-### 2. Answer correctness (semantic)
+### 2. Answer correctness (semantic) — **partially addressed 2026-07-31**
 
-There is no automated harness that:
+`evals/` now closes the deterministic part of this. Golden cases carry reference
+SQL that independently establishes the true answer; the harness asks the
+connector, runs that SQL against the same warehouse, and requires the two to
+agree within a stated tolerance. It also gates **number notation** (the Roman
+scale is enforced by guidance rather than code, so a DEC-UNITS regression
+previously had no gate at all). 23 credential-free tests run in CI; the live
+reconciliation is explicit-invocation only, because it costs real spend.
 
-- Compares an AI sidebar answer against a known-good ground-truth answer
-- Scores responses against an expected SQL or expected number
-- Detects hallucinations (the AI confidently asserting a fact that isn't in the data)
+**Still true, and the honest remaining gap.** There is no automated harness
+that:
+
+- **Detects hallucinations** — the AI confidently asserting a fact that isn't in
+  the data. Reconciliation catches a wrong NUMBER; it does not catch a
+  confident wrong CLAIM that carries no number, or a correct number wrapped in
+  a false explanation.
+- **Scores semantic quality** — coherence, whether an explanation follows from
+  the evidence, whether a citation supports what it is attached to. That is
+  LLM-as-judge territory and is not built.
+- **Covers breadth** — the golden set is four SCM cases against one connector.
+  It proves a path works, not that the product is right in general.
+
+So the headline caveat stands: **tests assert output SHAPE, and now a small
+number of ANSWERS. "All green" still does not mean "answers are right."**
 - Tracks regression in answer quality across releases
 
 When the team or an external doc claims "output quality is high" — that is a qualitative observation by the maintainer, NOT a number from a measured benchmark.

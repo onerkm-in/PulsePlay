@@ -29,7 +29,9 @@ Updated 2026-07-23.
 - **Exact unblock (operator):** assign the workspace to a **Premium / Fabric capacity** (a **Fabric trial** works during its window), then supply the real **Premium workspace GUID + dataset GUID** and an **SP with Build + Read** on the dataset.
 - **Code ready?** ✅ Yes. The mint route reads the GUIDs from the request body, `accessLevel: "View"`, the adapter wires `loaded`/`rendered`, and the embed-host check is strict. (No token is minted against an unknown target.)
 
-### 3. Power BI **RLS via OBO** — verified success
+### 3. Power BI **RLS via OBO** — verified success — **half unblocked 2026-07-31**
+- **The "no real IdP" half is now local, not external.** `dev/idp/` runs Keycloak — a genuine OIDC issuer with real RS256 tokens and a real JWKS endpoint — so the proxy's IdP verification, issuer/audience enforcement and persona-from-claims resolution can all be exercised without waiting for an Okta pilot. Out-of-process and dev-only; nothing ships. **Caveat: not yet booted end to end — docker is not installed on the current dev box.** See `dev/idp/README.md`.
+- **What is still genuinely blocked:** a **dataset with RLS roles defined** and a user mapped to one. That is a Power BI-side setup no local container can provide, so this row stays open.
 - **Why blocked:** proving row-level security under On-Behalf-Of needs a **real IdP** (Azure AD / Okta) + the **OBO flow** + a **dataset with RLS roles** + a user mapped to a role.
 - **Exact unblock (operator):** configure `PROXY_AUTH_MODE=idp` + `PROXY_IDP_JWKS_URL` / `PROXY_IDP_ISSUER` / `PROXY_IDP_AUDIENCE`; use a dataset that has RLS roles; sign in as a user the role applies to.
 - **Code ready?** ✅ Yes (fail-closed today). The proxy derives effective identity from verified IdP claims server-side and **rejects** browser-supplied identities; RLS fail-closed is unit-tested. (A non-Azure IdP with custom claim names is the one residual — see `ANALYSIS_FOLLOWUPS_2026-06-05.md` §3 `PROXY_IDP_CLAIM_MAP`, deferred until a real Okta pilot.)

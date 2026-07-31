@@ -8,6 +8,47 @@
 
 Ordered by impact × cost. Each item is independently shippable.
 
+- [x] **SEC-SUPPLYCHAIN — SHIPPED 2026-07-31** (`e434640` + `0507084`). Audit
+  found real advisories in code that SHIPS, not just test tooling: proxy
+  `js-yaml` quadratic-CPU (high), `qs` DoS, `body-parser` limit bypass; desktop
+  `http-proxy-middleware` **CRLF field injection + Host-header routing bypass**
+  (high). All fixed in-range, no `--force`. **All four runtime trees now
+  0/0/0/0.** Also: `dependency-review.yml` claimed in its own comment to block
+  disallowed licences and had no `allow-licenses` key — a control that did not
+  exist. Now enforces an evidence-derived permissive allowlist (1,556 packages
+  swept, zero GPL/AGPL/SSPL). New `supply-chain.yml` scans the DEFAULT branch
+  weekly + emits a CycloneDX SBOM, built only from npm built-ins and GitHub's
+  own actions — no third-party action is trusted. Gate blocks on `--omit=dev`;
+  the dev tree's ~19 findings are one advisory (`GHSA-mh99-v99m-4gvg`) with no
+  in-range fix for jest, named explicitly so a different dev finding gets
+  promoted rather than passing silently.
+
+- [x] **EVAL-RECONCILE — SHIPPED 2026-07-31** (`76b29e4`). `evals/` closes the
+  deterministic half of the QUALITY.md answer-correctness gap: golden cases
+  carry reference SQL, the harness asks the connector and requires agreement
+  with the warehouse within a stated tolerance. Also gates **notation** (Roman
+  scale is enforced by guidance, not code, so DEC-UNITS had no regression gate
+  at all). Zero dependencies on purpose. 23 credential-free tests in CI;
+  `run-live.mjs` is explicit-invocation only and fetches ground truth before
+  spending a model call. **Still open on this axis:** hallucination detection
+  and semantic/judge scoring — see QUALITY.md.
+
+- [x] **DEV-IDP — SHIPPED 2026-07-31** (`034250f`), partially unblocks
+  BLOCKERS #3. Keycloak in `dev/idp/`, out-of-process and dev-only, so
+  `PROXY_AUTH_MODE=idp` can be exercised against real signed tokens. Pinned
+  tripwire (10 tests): Keycloak emits roles under `realm_access.roles` while
+  the proxy reads a top-level `roles` claim — nothing errors, everyone silently
+  resolves to Planner by least privilege, and a Manager who cannot approve
+  looks like our bug rather than a missing protocol mapper.
+  **NOT verified end to end — docker is not installed on the dev box, so the
+  container was never booted.** First person with docker should run it.
+  Does NOT close AGENT-OBO, and does not by itself prove Power BI RLS.
+
+- [ ] **DOC-COST-P2-COLLISION — two different items share one ID** — one
+  `COST-P2` is marked `[x]` (duplicate allowlist fetch, closed in `0f03a27`);
+  a second, unrelated `COST-P2` is `[ ]` open (dedupe on-load metadata
+  fetches). Renumber the open one before someone closes the wrong thing.
+
 - [x] **CHART-HONEST-FALLBACK — SHIPPED and live-verified**: suffix-encoded
   columns decode to true values (net_sales_b 1.9 -> $1.9B); when magnitudes
   span >=100x the combined chart is REFUSED with a plain-language note + a
@@ -27,7 +68,12 @@ Ordered by impact × cost. Each item is independently shippable.
   remains the systemic path; this fallback makes the product safe regardless.
 
 
-- [~] **CHART-MISSING-SERIES — half closed**: OTIF FIXED (name-heuristic didn't
+- [x] **CHART-MISSING-SERIES — CLOSED 2026-07-31 (was stale, not open)**: the
+  remaining "Net Sales B" case was already fixed by `c0dd32c`, which decodes
+  `net_sales_b` 1.9 to $1.9B and states "Verified live on the exact 5-measure
+  repro". This entry and the CHART-HONEST-FALLBACK entry above it directly
+  contradicted each other for two days. Original text kept below for the
+  record: OTIF FIXED (name-heuristic didn't
   know the acronym is a %, so 93.4 plotted sub-pixel on the millions axis; KPI
   acronyms otif/ofr/mape/accuracy/utilization/availability/adherence now
   classify as percentage — verified live, pink bars beside OFR). STILL OPEN:
