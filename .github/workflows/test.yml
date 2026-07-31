@@ -84,6 +84,26 @@ jobs:
       # spawns a real browser. No lint script here.
       - run: node --test tests/*.test.mjs
 
+  evals:
+    name: eval harness (node --test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    defaults:
+      run:
+        working-directory: evals
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      # No npm ci and no cache key: this package has zero dependencies, so there
+      # is no lockfile to install from. Only the credential-free logic runs here
+      # — number extraction, notation rules, tolerance. The live reconciliation
+      # (run-live.mjs) costs real model and warehouse calls and is never wired
+      # into CI; see evals/README.md.
+      - run: node --test tests/*.test.mjs
+
   pulse-pbi:
     name: Pulse PBI enabler (lint + unit)
     runs-on: ubuntu-latest

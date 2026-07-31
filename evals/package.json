@@ -1,0 +1,15 @@
+{
+    "name": "pulseplay-evals",
+    "private": true,
+    "version": "0.1.0",
+    "type": "module",
+    "description": "Answer-correctness harness. Reconciles what a connector ANSWERS against what the warehouse actually holds, and checks the answer obeys the project's own number-notation convention. Zero runtime and zero dev dependencies on purpose — see README.",
+    "scripts": {
+        "test": "node --test tests/*.test.mjs",
+        "live": "node run-live.mjs",
+        "live:verbose": "node run-live.mjs --verbose"
+    },
+    "engines": {
+        "node": ">=20"
+    }
+}

@@ -1,0 +1,53 @@
+{
+    "$comment": [
+        "Golden cases for the SCM star. Each case asks a question in natural language and",
+        "carries the SQL that independently establishes the true answer, so the check is",
+        "'does the connector agree with the warehouse', not 'does the connector agree with",
+        "a number someone typed here last quarter'.",
+        "",
+        "Reference SQL derives its own reporting month via MAX(month_key) rather than",
+        "hardcoding one — the synthetic star is as-of 30-Jun-2026 today and will roll.",
+        "",
+        "Notation compliance (M = thousand, MM = million, B = billion, K forbidden) is",
+        "checked on EVERY case automatically; it needs no per-case configuration."
+    ],
+    "table": "main.supply_chain.fact_supply_chain_kpi_monthly",
+    "cases": [
+        {
+            "id": "otif-weighted-latest",
+            "question": "What was our overall OTIF percentage in the most recent month? Give a single number.",
+            "why": "OTIF is the headline KPI and the one with a real arithmetic trap: the honest figure is order-weighted (SUM(orders_otif)/SUM(orders_total)), not AVG(otif_pct) across rows. A connector that averages the percentage column will land close enough to look right and still be wrong, which is exactly the failure a shape-only test cannot see.",
+            "referenceSql": "SELECT ROUND(100.0 * SUM(orders_otif) / NULLIF(SUM(orders_total), 0), 2) AS otif_pct FROM main.supply_chain.fact_supply_chain_kpi_monthly WHERE month_key = (SELECT MAX(month_key) FROM main.supply_chain.fact_supply_chain_kpi_monthly)",
+            "column": "otif_pct",
+            "expectPercent": true,
+            "tolerancePct": 1
+        },
+        {
+            "id": "backorder-units-latest",
+            "question": "How many units were on backorder in the most recent month? Give a single total.",
+            "why": "A plain additive magnitude, and the case where Roman-scale notation actually bites — a six-figure unit count is where a model reaches for 'K'.",
+            "referenceSql": "SELECT SUM(backorder_units) AS backorder_units FROM main.supply_chain.fact_supply_chain_kpi_monthly WHERE month_key = (SELECT MAX(month_key) FROM main.supply_chain.fact_supply_chain_kpi_monthly)",
+            "column": "backorder_units",
+            "expectPercent": false,
+            "tolerancePct": 1
+        },
+        {
+            "id": "forecast-accuracy-avg-latest",
+            "question": "What was the average forecast accuracy in the most recent month? Give a single percentage.",
+            "why": "Deliberately an unweighted average, and the question says so. Pairs with the OTIF case: together they prove the connector follows the question's stated aggregation rather than defaulting to one habit for every percentage.",
+            "referenceSql": "SELECT ROUND(AVG(forecast_accuracy_pct), 2) AS forecast_accuracy_pct FROM main.supply_chain.fact_supply_chain_kpi_monthly WHERE month_key = (SELECT MAX(month_key) FROM main.supply_chain.fact_supply_chain_kpi_monthly)",
+            "column": "forecast_accuracy_pct",
+            "expectPercent": true,
+            "tolerancePct": 1
+        },
+        {
+            "id": "otif-deduction-cost-latest",
+            "question": "What was the total OTIF deduction cost in the most recent month? Give a single figure.",
+            "why": "Currency rather than units or percent, so the parser has to survive a symbol and grouping separators. This is also the number the cockpit's headline impact derives from, making a drift here directly visible to a user.",
+            "referenceSql": "SELECT ROUND(SUM(otif_deduction_cost), 2) AS otif_deduction_cost FROM main.supply_chain.fact_supply_chain_kpi_monthly WHERE month_key = (SELECT MAX(month_key) FROM main.supply_chain.fact_supply_chain_kpi_monthly)",
+            "column": "otif_deduction_cost",
+            "expectPercent": false,
+            "tolerancePct": 1
+        }
+    ]
+}
