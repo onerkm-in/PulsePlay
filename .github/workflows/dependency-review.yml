@@ -1,11 +1,24 @@
 name: dependency-review
 
 # Blocks PRs that introduce known-vulnerable or disallowed-license dependencies.
-# Native GitHub action; PR-only. Requires the repo's Dependency Graph to be
-# enabled (Settings → Code security → Dependency graph).
+# Native GitHub action; PR-only.
+#
+# ⚠ CURRENTLY INERT — and it always has been. This workflow needs the repo's
+# Dependency Graph enabled; that API answers 403 here, so every run since the
+# workflow was added has failed with "Dependency review is not supported on this
+# repository". Verified 2026-07-31 across its entire run history: 12 runs, 12
+# failures, zero passes. Nothing has ever been gated by it.
+#
+# TO FIX (repo admin, one toggle):
+#   Settings → Code security → Dependency graph → Enable
+#
+# Until then the real licence gate is `scripts/check-licenses.mjs`, run by
+# supply-chain.yml, which reads the lockfiles directly and needs no GitHub
+# feature. The allowlist below is kept in sync with that script deliberately —
+# edit both — so this starts working the moment the toggle is flipped.
 #
 # Scheduled scanning of the DEFAULT branch (which this workflow cannot do, being
-# PR-only) lives in supply-chain.yml.
+# PR-only) also lives in supply-chain.yml.
 on: pull_request
 
 permissions:

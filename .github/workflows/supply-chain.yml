@@ -30,6 +30,29 @@ permissions:
   contents: read
 
 jobs:
+  # Licence gate that works TODAY.
+  #
+  # dependency-review is the nicer gate — PR annotations, severity awareness —
+  # but it needs the repo's Dependency Graph enabled, and that API currently
+  # answers 403 here, so it has failed every run since it was added. A check
+  # that is always red is worse than no check: it teaches everyone to ignore
+  # red. This reads the lockfiles directly, needs no GitHub feature, no network
+  # and no dependencies. Keep both — when the toggle is flipped, the two are
+  # complementary rather than redundant.
+  licences:
+    name: licence allowlist
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      - name: unit-test the SPDX expression logic
+        run: node --test scripts/tests/*.test.mjs
+      - name: scan every lockfile
+        run: node scripts/check-licenses.mjs
+
   audit:
     name: audit + sbom (${{ matrix.pkg }})
     runs-on: ubuntu-latest
@@ -78,9 +101,35 @@ jobs:
 
       # Inventory of what ships, so "are we affected by X?" is a lookup during an
       # incident instead of a re-derivation. `npm sbom` is built into npm 10+.
+      #
+      # This must NOT fail the job. The gate is the audit above; an SBOM is a
+      # reporting artifact, and letting a reporting step turn a passing security
+      # check red trains people to ignore the check. It is reported loudly
+      # instead, because a silently absent SBOM is the failure mode worth
+      # avoiding.
+      #
+      # Known permanent failure: enablers/pulse-pbi is `pulse-visuals@2.1.0.0`.
+      # Power BI custom visuals use a FOUR-segment version (pbiviz requires it),
+      # which is not semver, so npm cannot build a package URL for it and exits
+      # EINVALIDPURLTYPE. Do not "fix" that version — it would break the pbiviz
+      # package. This package simply has no SBOM until npm supports non-semver
+      # roots.
       - name: generate CycloneDX SBOM (runtime deps)
         if: always()
-        run: npm sbom --sbom-format cyclonedx --omit=dev > sbom.cdx.json
+        run: |
+          if npm sbom --sbom-format cyclonedx --omit=dev > sbom.cdx.json 2> sbom.err; then
+            echo "SBOM generated for ${{ matrix.pkg }}."
+          else
+            rm -f sbom.cdx.json
+            {
+              echo "### ${{ matrix.pkg }} — NO SBOM generated"
+              echo ""
+              echo "\`npm sbom\` failed. The audit gate above is unaffected, but this package has no inventory artifact for incident lookup."
+              echo '```'
+              cat sbom.err
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: upload SBOM
         if: always()
@@ -89,3 +138,6 @@ jobs:
           name: sbom-${{ strategy.job-index }}
           path: ${{ matrix.pkg }}/sbom.cdx.json
           retention-days: 90
+          # Expected for pulse-pbi (see above); warn rather than fail so the
+          # absence is visible in the log without going red.
+          if-no-files-found: warn
