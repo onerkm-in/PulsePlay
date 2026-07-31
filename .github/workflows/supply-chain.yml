@@ -60,11 +60,34 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        pkg:
-          - proxy
-          - playground
-          - enablers/desktop
-          - enablers/pulse-pbi
+        include:
+          - pkg: proxy
+            audit_level: high
+          - pkg: playground
+            audit_level: high
+          - pkg: enablers/desktop
+            audit_level: high
+          - pkg: enablers/pulse-pbi
+            audit_level: high
+          # Missed on day one — this package was absent from dependabot.yml, so
+          # deriving the matrix from there silently excluded it. Enabling the
+          # dependency graph exposed the gap: 20 of the repo's 22 open alerts
+          # lived here. If another package.json is ever added, add it HERE and
+          # to dependabot.yml and scripts/check-licenses.mjs — all three lists
+          # are maintained by hand, which is exactly how this one got dropped.
+          #
+          # Gated at critical, not high, for ONE named reason: xlsx is a direct
+          # runtime dep here (the Pulse exporters ship into the .pbiviz) and its
+          # two high advisories (prototype pollution + ReDoS, both READ-path)
+          # have no npm-registry fix — SheetJS stopped publishing to npm at
+          # 0.18.5; fixes live only in their CDN dist. Our usage is write-only
+          # (XLSX.write of our own data; no XLSX.read of user files anywhere),
+          # so the advisories' trigger path does not exist in the product
+          # today. The real fix is migrating to the CDN dist or ExcelJS —
+          # AGENDA DEP-XLSX. If any OTHER high lands here, this exemption does
+          # not cover it: tighten back to high after the xlsx migration.
+          - pkg: enablers/pulse-pbi-gn
+            audit_level: critical
     defaults:
       run:
         working-directory: ${{ matrix.pkg }}
@@ -78,9 +101,11 @@ jobs:
       - run: npm ci
 
       # THE GATE — runtime dependencies only. This is what actually ships and
-      # reaches a request, so it must be clean at high/critical.
+      # reaches a request, so it must be clean at high/critical. (audit_level is
+      # per-package; anything below "high" must carry a named justification in
+      # the matrix above.)
       - name: audit runtime dependencies (blocking)
-        run: npm audit --omit=dev --audit-level=high
+        run: npm audit --omit=dev --audit-level=${{ matrix.audit_level }}
 
       # Dev/build tooling is reported but does NOT fail the run, and the reason
       # is specific rather than a blanket exemption: as of 2026-07-31 the entire

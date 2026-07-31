@@ -27,3 +27,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 3
+  # Was missing entirely — found 2026-07-31 when enabling the dependency graph
+  # surfaced 20 of the repo's 22 open alerts in this one uncovered package.
+  - package-ecosystem: npm
+    directory: /enablers/pulse-pbi-gn
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3

@@ -62,16 +62,43 @@ Ordered by impact × cost. Each item is independently shippable.
   `dependabot_security_updates` **disabled** on a PUBLIC repo — see
   `SEC-REPO-SETTINGS` below.
 
-- [ ] **SEC-REPO-SETTINGS — four GitHub security toggles are off on a PUBLIC
-  repo (owner action, 5 minutes)** — verified via the API 2026-07-31:
-  `dependency_graph` (403; this is why dependency-review can never pass),
-  `secret_scanning` disabled, `secret_scanning_push_protection` disabled,
-  `dependabot_security_updates` disabled. Push protection is the one that
-  actually stops a Databricks PAT or a Power BI SP secret from being committed
-  to a public repository, and it is free. Enable at
-  Settings → Code security. Note push protection will start blocking pushes
-  that contain detected secrets — that is the point, but it changes the push
-  workflow, so it is the owner's call rather than a silent default.
+- [x] **SEC-REPO-SETTINGS — CLOSED 2026-07-31 with owner GO: all four enabled
+  via the API** — dependency graph (the compare API now answers; was 403),
+  secret scanning, **push protection** (pushes containing a detected secret
+  now get blocked — that is the point), and Dependabot security updates.
+  Enabling scanning immediately surfaced real signal — see SEC-LEAKED-PAT and
+  the pulse-pbi-gn coverage gap. Original entry: four toggles off on a PUBLIC
+  repo; push protection is the one that actually stops a Databricks PAT or a
+  Power BI SP secret from being committed.
+
+- [ ] **SEC-LEAKED-PAT — rotate/confirm-dead the token-shaped string in public
+  history (OWNER, 10 minutes)** — secret scanning found two
+  `databricks_access_token` alerts the moment it came on. Alert **#2**
+  (`dapi1234567890abcdef…`, sequential test fixture in workbench tests deleted
+  by `47f6d49`) — resolved as `used_in_tests`. Alert **#1** is the one that
+  matters: **`dapi006f…` in `piiRedact.test.ts` at commit `f15e16e`** has real
+  entropy and cannot be distinguished from a genuine PAT by inspection. It
+  does **NOT** match the current working token (`dapi3a45…` — compared
+  locally, values never printed), and the current file uses an obvious
+  placeholder instead, but the string is in PUBLIC git history forever
+  (rewrite does not un-index it). **Action: check the token inventories of
+  any workspace you have used (old and current) and revoke anything you
+  cannot account for; then resolve alert #1 with the outcome.** Left OPEN on
+  GitHub deliberately — resolving it before rotation would hide the reminder.
+
+- [ ] **DEP-XLSX — migrate off the abandoned npm xlsx build (0.18.5)** —
+  `xlsx` ships in the playground bundle (lazy chunk, despite sitting in
+  devDependencies) and is a direct runtime dep of `pulse-pbi-gn`. Two high
+  advisories (prototype pollution + ReDoS), both **read-path**; PulsePlay is
+  write-only today so the trigger path does not exist — but that is one
+  `XLSX.read` call away from changing. No fix on the npm registry: SheetJS
+  publishes fixes only to their CDN dist (≥0.19.3/0.20.2). Options: (a) the
+  CDN tarball as a pinned URL dep (same vendor, new host in the supply
+  chain), (b) ExcelJS (API migration in `insightsExporters.ts` + the synced
+  enabler copy). Until then `pulse-pbi-gn`'s audit gate sits at `critical`
+  with the exemption named in `supply-chain.yml` — tighten back to `high`
+  when this closes. **Guardrail: no `XLSX.read` of user-supplied files
+  anywhere before this migration.**
 
 - [x] **DOC-ACCURACY-2026-07-31 — three docs were asserting controls that do
   not exist.** Same class of defect as the `dependency-review` comment, found

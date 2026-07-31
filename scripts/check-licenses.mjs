@@ -26,6 +26,7 @@ const LOCKFILES = [
     'playground/package-lock.json',
     'enablers/desktop/package-lock.json',
     'enablers/pulse-pbi/package-lock.json',
+    'enablers/pulse-pbi-gn/package-lock.json',
 ];
 
 // Permissive only. Mirrors .github/workflows/dependency-review.yml — if you edit
