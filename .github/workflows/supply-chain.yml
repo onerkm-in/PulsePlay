@@ -1,0 +1,91 @@
+name: supply-chain
+
+# Scheduled dependency-risk scan + SBOM. This covers the gap `dependency-review`
+# leaves: that one is `on: pull_request`, so it only ever sees the diff. A CVE
+# disclosed against something we merged last month is caught by nothing until
+# someone opens a PR that happens to touch it. This runs on a schedule against
+# the default branch instead.
+#
+# Deliberately built from npm built-ins (`npm audit`, `npm sbom`) and GitHub's
+# own actions — no third-party action is trusted here. A supply-chain workflow
+# that itself pulls an unpinned third-party action is theatre: CI actions run
+# with repo credentials, and that class of action has been compromised in the
+# wild. If we ever add one, pin it to a full commit SHA, not a tag.
+
+on:
+  schedule:
+    # Mondays 06:00 UTC — a day before Dependabot's weekly PRs land, so a fresh
+    # advisory shows up as a failed scan before the bump PRs bury it.
+    - cron: '0 6 * * 1'
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: audit + sbom (${{ matrix.pkg }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        pkg:
+          - proxy
+          - playground
+          - enablers/desktop
+          - enablers/pulse-pbi
+    defaults:
+      run:
+        working-directory: ${{ matrix.pkg }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: ${{ matrix.pkg }}/package-lock.json
+      - run: npm ci
+
+      # THE GATE — runtime dependencies only. This is what actually ships and
+      # reaches a request, so it must be clean at high/critical.
+      - name: audit runtime dependencies (blocking)
+        run: npm audit --omit=dev --audit-level=high
+
+      # Dev/build tooling is reported but does NOT fail the run, and the reason
+      # is specific rather than a blanket exemption: as of 2026-07-31 the entire
+      # dev-tree finding is one advisory (GHSA-mh99-v99m-4gvg, brace-expansion
+      # DoS) reaching us transitively through jest's minimatch/glob chain. Its
+      # fixed range is >5.0.7 and jest's tree resolves 1.x/2.x, so there is no
+      # in-range fix — only `--force`, which breaks the test runner. Exploiting
+      # it needs attacker-controlled glob patterns fed to our own test runner.
+      # Revisit when jest's tree moves; if a dev finding ever appears that is
+      # NOT this shape, promote it rather than widening this exemption.
+      - name: audit full tree (report only)
+        if: always()
+        run: |
+          echo "### ${{ matrix.pkg }} — full tree (dev included, non-blocking)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          npm audit 2>&1 | tail -n 25 >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      # Inventory of what ships, so "are we affected by X?" is a lookup during an
+      # incident instead of a re-derivation. `npm sbom` is built into npm 10+.
+      - name: generate CycloneDX SBOM (runtime deps)
+        if: always()
+        run: npm sbom --sbom-format cyclonedx --omit=dev > sbom.cdx.json
+
+      - name: upload SBOM
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ strategy.job-index }}
+          path: ${{ matrix.pkg }}/sbom.cdx.json
+          retention-days: 90

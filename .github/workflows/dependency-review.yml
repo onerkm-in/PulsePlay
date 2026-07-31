@@ -3,6 +3,9 @@ name: dependency-review
 # Blocks PRs that introduce known-vulnerable or disallowed-license dependencies.
 # Native GitHub action; PR-only. Requires the repo's Dependency Graph to be
 # enabled (Settings → Code security → Dependency graph).
+#
+# Scheduled scanning of the DEFAULT branch (which this workflow cannot do, being
+# PR-only) lives in supply-chain.yml.
 on: pull_request
 
 permissions:
@@ -17,3 +20,43 @@ jobs:
       - uses: actions/dependency-review-action@v5
         with:
           fail-on-severity: high
+
+          # Permissive-only allowlist. Derived from the tree we actually have
+          # rather than picked from a template: a sweep of all four lockfiles on
+          # 2026-07-31 found 1,556 packages across MIT / ISC / Apache-2.0 / BSD /
+          # MPL-2.0 / BlueOak / 0BSD / CC-BY-4.0 / MIT-0 / CC0 / Python-2.0 /
+          # Unlicense and ZERO GPL, AGPL or SSPL. So this list is enforceable
+          # today without breaking a single existing dependency, and its job is
+          # to keep it that way — strong copyleft arriving transitively is a real
+          # risk for the Path C inner-source-now / public-OSS-later posture, and
+          # it should surface at the PR that introduces it, not at a licence
+          # review two years later.
+          #
+          # Note this only reviews dependencies a PR CHANGES, so adding it now
+          # cannot retroactively fail anything already merged.
+          #
+          # MPL-2.0 is weak (file-level) copyleft and is already present; it is
+          # allowed deliberately. GPL/AGPL/SSPL are absent and stay absent — if
+          # one is ever genuinely needed, that is a decision to take explicitly
+          # by editing this list, which is the whole point.
+          allow-licenses: >-
+            0BSD,
+            Apache-2.0,
+            BlueOak-1.0.0,
+            BSD-2-Clause,
+            BSD-3-Clause,
+            CC0-1.0,
+            CC-BY-4.0,
+            ISC,
+            MIT,
+            MIT-0,
+            MPL-2.0,
+            Python-2.0,
+            Unlicense,
+            WTFPL,
+            Zlib
+
+          # A package whose licence GitHub cannot resolve is reported as unknown
+          # and will fail the allowlist. Exempt individual packages by name+version
+          # here rather than widening allow-licenses, e.g.
+          #   allow-dependencies-licenses: 'pkg:npm/some-package@1.2.3'
