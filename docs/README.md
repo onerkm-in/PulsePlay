@@ -8,7 +8,9 @@
 - First production-grade product cell: **Databricks Genie + Power BI**. It must remain modular through the BI adapter axis and AI connector axis.
 - BI axis status: Power BI has a real `powerbi-client` adapter; generic iframe is the escape hatch; Tableau/Qlik/Looker are still iframe fallbacks until their SDK adapters graduate.
 - AI connector axis status: **10 backend paths**. Genie, Azure OpenAI chat, Azure OpenAI analytics, Bedrock RAG, Bedrock direct, Foundation Model, Supervisor, Supervisor-local, ResponsesAgent, and Power BI semantic-model deterministic DAX.
-- Latest recorded validation: proxy **1137/1137**; playground **1382/1382**, lint clean, and `vite build` clean; Pulse PBI enabler **93/93**, lint clean, and local `pbiviz` package clean after PB1a.
+- Latest recorded validation (2026-07-31, HEAD `29c84b8`): proxy **1553/1553** (88 suites); playground **2019/2019** (157 files); evals **23/23**; lint clean and `vite build` clean; Pulse PBI enabler **93/93**, lint clean, and local `pbiviz` package clean after PB1a.
+- Supply-chain posture (2026-07-31): all four runtime dependency trees clean at high/critical; evidence-derived licence allowlist on PRs; weekly default-branch scan + CycloneDX SBOM. Built only from npm built-ins and GitHub's own actions — no third-party action is trusted with repo credentials.
+- Answer correctness: [`evals/`](../evals/README.md) reconciles connector answers against the warehouse and gates number notation. Deterministic half only — no hallucination detection, no semantic scoring. See [QUALITY.md](QUALITY.md).
 - Latest shell smoke: **SS2/FW1 passes** via `node playground/scripts/shell-smoke-proxy.mjs` with real proxy + real Vite + real headless Chromium + AISidebar submit -> governed answer -> native canvas paint. Remaining notable blockers are local Node CA trust for live Databricks calls and the HelpTip React console warning.
 
 ## Read These First
@@ -37,6 +39,8 @@
 | 2-axis architecture and backend table | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Proxy routes, profile shapes, OAuth/M2M | [PROXY_REFERENCE.md](PROXY_REFERENCE.md) |
 | Security guardrails | [SECURITY.md](SECURITY.md) |
+| Answer-correctness harness (reconcile vs warehouse) | [../evals/README.md](../evals/README.md) |
+| Local IdP for exercising `PROXY_AUTH_MODE=idp` | [../dev/idp/README.md](../dev/idp/README.md) |
 | Hosting choices and production topology | [HOSTING_OPTIONS.md](HOSTING_OPTIONS.md) |
 | Power BI DAX / Q&A enablement | [POWERBI_DAX_QNA_ENABLEMENT.md](POWERBI_DAX_QNA_ENABLEMENT.md) |
 | Azure App Service configuration challenges | [DEPLOY_AZURE_APP_SERVICE.md](DEPLOY_AZURE_APP_SERVICE.md) |

@@ -62,7 +62,11 @@ Once both are running, the playground will:
 
 **First production target in flight — Genie + Power BI.** Proxy + databricks-agents + cross-cutting docs inherited from sister Pulse project cycles 1-47. The ported Pulse AI experience runs inside the playground, Power BI has a real `powerbi-client` adapter, and Tableau/Qlik/Looker remain modular iframe stubs until the first cell passes the production gate.
 
-Current local validation (2026-06-06, HEAD `cd2d032`): proxy **1243/1243**; playground **1926/1926**, lint clean (`tsc --noEmit`), and `vite build` clean; Pulse PBI enabler **93/93** (last verified 2026-05-23). The credential-free smoke also passes via `node playground/scripts/smoke-all-screens.mjs` (echarts-6 fixture paint, zero JS errors).
+Current local validation (2026-07-31, HEAD `29c84b8`): proxy **1553/1553** (88 suites); playground **2019/2019** (157 files); evals **23/23**; lint clean (`tsc --noEmit`), and `vite build` clean; Pulse PBI enabler **93/93** (last verified 2026-05-23). The credential-free smoke also passes via `node playground/scripts/smoke-all-screens.mjs` (echarts-6 fixture paint, zero JS errors).
+
+**Supply chain (2026-07-31).** All four runtime dependency trees are clean at high/critical. `dependency-review` enforces an evidence-derived permissive licence allowlist, and `supply-chain.yml` scans the default branch weekly and emits a CycloneDX SBOM — both built only from npm built-ins and GitHub's own actions, so no third-party action is trusted with repo credentials. The one dev-tree exemption is a single named advisory with no in-range fix for jest, not a blanket pass.
+
+**Answer correctness.** [`evals/`](evals/README.md) reconciles a connector's answer against the warehouse using reference SQL, and gates the project's number-notation convention. It closes the deterministic half of the gap in [docs/QUALITY.md](docs/QUALITY.md) — there is still no hallucination detection and no semantic scoring, so "all green" still does not mean "answers are right."
 
 **The connector axis grew in May 2026.** PulsePlay now hosts **10 backend paths** on the AI side: Genie / Azure OpenAI (chat + analytics) / Bedrock (RAG + direct) / Foundation Model / Supervisor (managed + local) / ResponsesAgent / **Power BI semantic-model** (the latest — deterministic DAX templates, no LLM in the loop). The Power BI brain also exposes a **Q&A embed surface** at `/powerbi/qna` so deployers who want Microsoft's NLP can get it without PulsePlay invoking any LLM (Microsoft handles it in their tenant). See [docs/PROXY_REFERENCE.md](docs/PROXY_REFERENCE.md) for the full backend table.
 
@@ -79,6 +83,8 @@ PulsePlay/
 ├── proxy/                # X-axis: connector-agnostic AI backbone (Pulse heritage)
 ├── databricks-agents/    # Mosaic AI Supervisor Agent template
 ├── pulsepacks/           # Vertical packs (CPG/FMCG, manufacturing, ...)
+├── evals/                # Answer-correctness harness (reconcile vs warehouse; zero deps)
+├── dev/idp/              # Local Keycloak for exercising PROXY_AUTH_MODE=idp (dev only)
 ├── scripts/              # llm_onboard, llm_wrapup, smoke helpers
 ├── docs/                 # ARCHITECTURE, SECURITY, ROADMAP, AGENDA, PROXY_REFERENCE, ...
 ├── CLAUDE.md             # Per-session collaboration guide for LLMs
@@ -109,6 +115,8 @@ PulsePlay/
 | [docs/SECURITY.md](docs/SECURITY.md) | Internal-scoped security guardrails |
 | [docs/PROXY_REFERENCE.md](docs/PROXY_REFERENCE.md) | Proxy API surface, scopes, OAuth M2M setup |
 | [docs/QUALITY.md](docs/QUALITY.md) | What we measure, what we don't, what's roadmap |
+| [evals/README.md](evals/README.md) | Answer-correctness harness — reconcile against the warehouse, gate notation |
+| [dev/idp/README.md](dev/idp/README.md) | Local Keycloak for `PROXY_AUTH_MODE=idp` (dev only, ships nothing) |
 | [docs/PACKS.md](docs/PACKS.md) | Pack architecture overview |
 | [docs/SETTINGS_SPEC.md](docs/SETTINGS_SPEC.md) | Settings page master spec — IA + microcopy + state + guardrails + loophole audit |
 | [docs/research/SETTINGS_ALIGNMENT_OBSERVATION_2026-05-22.md](docs/research/SETTINGS_ALIGNMENT_OBSERVATION_2026-05-22.md) | Settings observation alignment before brainstorming, including screenshot synthesis and Figma/VS Code handoff path |

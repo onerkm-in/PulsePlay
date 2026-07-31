@@ -89,6 +89,9 @@ ANY combination of (vendor, connector) is valid. Switching either is independent
 | `proxy/lib/foundationModelClient.js` | Mosaic AI Foundation Model serving endpoint client (cycle 47.6+47.7 from the sister project) |
 | `proxy/lib/insightsValidator.js` | Per-section validator framework (cycle 23-47 from the sister project) |
 | `databricks-agents/supervisor/` | Mosaic AI Supervisor Agent template (LangGraph + create_react_agent) |
+| `evals/` | Answer-correctness harness — reconciles a connector's answer against the warehouse via reference SQL and gates the Roman-scale notation convention. **Zero dependencies.** `npm test` is credential-free and runs in CI; `npm run live` costs real spend and is explicit-invocation only |
+| `dev/idp/` | Local Keycloak for exercising `PROXY_AUTH_MODE=idp` against real signed tokens. Dev-only, out-of-process, ships nothing. **Not yet booted** — no docker on the current dev box |
+| `.github/workflows/supply-chain.yml` | Weekly default-branch dependency scan + CycloneDX SBOM. npm built-ins only — no third-party action is trusted with repo credentials |
 | `scripts/llm_onboard.py` / `llm_wrapup.py` | Universal LLM ritual |
 | `scripts/smoke-full.ps1` / `smoke-rls-ols.ps1` | Smoke helpers (need adaptation for PulsePlay's profiles) |
 | `docs/ARCHITECTURE.md` | THIS PROJECT's architectural lodestar (replaced inherited PepPulse-titled doc; merged from former `MULTI_BI_ARCHITECTURE.md`) |

@@ -129,8 +129,12 @@ WCAG compliance is not formally tested. The playground UI is minimal today; a fo
 
 ## Why this honesty matters
 
-A sharp evaluator will ask "show me the test results" within 5 minutes. Better to say "1243 proxy tests green; 1926 playground/adapter tests green (both verified 2026-06-06); 93 Pulse PBI enabler unit tests green in the latest recorded validation; SS2/FW1 proxy-backed shell smoke green; eval suite next investment" than to claim a measured answer-quality number that doesn't exist. The proxy infrastructure is measurably solid, Power BI is the first real BI adapter, and the playground architecture is becoming test-backed. Lead with what's true; let the eval claim grow alongside the actual eval rig.
+A sharp evaluator will ask "show me the test results" within 5 minutes. Better to say "1553 proxy tests green; 2019 playground/adapter tests green (both verified 2026-07-31); 23 eval-harness tests green; 93 Pulse PBI enabler unit tests green in the latest recorded validation; SS2/FW1 proxy-backed shell smoke green" than to claim a measured answer-quality number that doesn't exist.
+
+Since 2026-07-31 there is a *small* true answer-quality claim available, and it is worth stating precisely rather than inflating: **four golden questions reconcile against the warehouse on demand, and the number-notation convention is gated.** That is a real measurement of a real path. It is not a hallucination rate, not a semantic score, and not breadth. Say that sentence, not a bigger one.
+
+The proxy infrastructure is measurably solid, Power BI is the first real BI adapter, and the playground architecture is test-backed. Lead with what's true; let the eval claim grow alongside the actual eval rig.
 
 ---
 
-*Compiled 2026-05-10 during the docs consolidation cycle. Updated 2026-06-06 after a full local re-run: proxy **1243/1243** (jest), playground **1926/1926** (vitest), lint clean (`tsc --noEmit`). The Pulse PBI enabler 93/93 count was NOT re-verified this session (last recorded 2026-05-23). Re-run when test counts change or when the eval rig lands. The historical Pulse-numbered version is archived at [inherited/PEPPULSE_BEAST_MODE_MEMORY.md](inherited/PEPPULSE_BEAST_MODE_MEMORY.md) and the original `QUALITY_METHODOLOGY.md` content this file pruned from.*
+*Compiled 2026-05-10 during the docs consolidation cycle. Updated 2026-07-31 after a full local re-run: proxy **1553/1553** (jest, 88 suites), playground **2019/2019** (vitest, 157 files), evals **23/23** (node:test), lint clean (`tsc --noEmit`), `vite build` clean. The Pulse PBI enabler 93/93 count was NOT re-verified this session (last recorded 2026-05-23). The eval rig has now partially landed — see §2. The historical Pulse-numbered version is archived at [inherited/PEPPULSE_BEAST_MODE_MEMORY.md](inherited/PEPPULSE_BEAST_MODE_MEMORY.md) and the original `QUALITY_METHODOLOGY.md` content this file pruned from.*

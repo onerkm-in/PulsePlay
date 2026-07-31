@@ -142,7 +142,13 @@ The proxy logs every AI-relevant event. Fields:
 - AI answer length, citation presence (when citations land)
 - X-Request-Id for cross-system correlation
 
-Write to append-only flat files in dev. In production, pipe to the org SIEM via syslog/fluentd. Logs are NOT encrypted at rest by PulsePlay — disk encryption on the host + SIEM forwarding is the assumed pattern.
+**Where these actually go, corrected 2026-07-31.** The general-purpose `auditLog()` writes **`console.log('[audit]', …)` and nothing else** ([server.js:2356](../proxy/server.js#L2356)) — stdout only. There is no file sink and no SIEM forwarder in code. Whatever captures the process's stdout is the durability story, so on a container restart with no log driver configured, those lines are gone.
+
+This paragraph previously read "Write to append-only flat files in dev. In production, pipe to the org SIEM via syslog/fluentd." That described an intended design, not shipped behaviour, and a security doc asserting a control that does not exist is worse than one admitting the gap. Tracked as AGENDA `REBUILD-P1 — Durable audit sink`.
+
+The one exception is real: the **Action Insights** subsystem writes audit rows to a Delta table via its own `writeAudit()`. General Q&A / SQL / answer / confidence events across the Genie, FM, Supervisor and Power BI paths do not.
+
+Logs are NOT encrypted at rest by PulsePlay — disk encryption on the host + log forwarding is the assumed pattern.
 
 PII / token redaction in logs:
 
@@ -153,7 +159,8 @@ PII / token redaction in logs:
 ### Rate limiting and resource consumption
 
 - **Per-IP rate limit** in the proxy: 120 req/min/IP. Slows brute-force / scraping.
-- **Per-user / per-profile / per-agent rate limits** — pending. v0.3 work. Without them, one user's runaway loop can starve everyone else.
+- **Per-user rate limit** — **shipped** (`b1434a2`): 60 req/min per authenticated `sub` on the cost-bearing AI paths ([server.js:2144](../proxy/server.js#L2144)). No-op for unauthenticated callers, who are already covered by the IP limit. Per-profile and per-agent limits are still pending.
+- **Spend guard** — **shipped** (`f8bc433`): reserve-then-settle ledger with per-run, daily and per-step ceilings; fails closed with no estimate, and an unknown actual settles at the reservation rather than zero. Read-only at `GET /assistant/spend`. **Process-local** — a multi-replica deployment needs a shared store before it is a real ceiling.
 - **Body size cap** — Express `express.json({ limit: '5mb' })`. Reject 5MB+ payloads at the boundary.
 - **Token / cost budgets** — pending. The platform team's AI services may already enforce these on their side. Confirm.
 
@@ -245,10 +252,24 @@ What PulsePlay does NOT do, that a regulated or public-facing deployment would n
 - **No mTLS** between browser and proxy. Bearer auth via IdP session is the only auth.
 - **No request signing.** Replay within the session window is possible.
 - **No data residency controls.** Proxy can route to any backend region. Pin via profile config.
-- **No automated CVE scanning in CI.** `npm audit` runs locally; no PR gate. (Trivial to add.)
-- **No formal evaluation suite for AI output.** See [QUALITY.md](QUALITY.md). Eval rig is a v0.3+ candidate.
+- **No durable audit sink.** `auditLog()` is stdout only — see "Logging and audit" above. AGENDA `REBUILD-P1`.
+- **No operator killswitch.** Nothing can halt AI execution proxy-wide or force SQL-only mode at runtime. The nearest control (`MVP_ACTION_LEVEL_CEILING`) is a design-time ceiling on action-triggering, not a runtime toggle. AGENDA `REBUILD-P1`.
+- **No on-behalf-of-user identity for agent steps.** The agentic investigator runs under the profile's service credential, so on a workspace with per-user Unity Catalog grants a user can receive data their own grants would deny. Surfaced honestly in-product (`identity.onBehalfOfUser: false` plus a caveat on the card) and demo-scoped. AGENDA `AGENT-OBO` — **the enterprise blocker.**
+- **Spend ledger is process-local.** Correct for one replica; not a ceiling across several.
+- **No hallucination detection or semantic scoring of AI output.** [`evals/`](../evals/README.md) now reconciles answers against the warehouse and gates number notation, which is the deterministic half — see [QUALITY.md](QUALITY.md) §2 for what remains.
 - **No write-back / approval-workflow primitives.** AI is read-and-recommend only in v1.
 - **No multi-tenant isolation.** v1 is single-tenant per deployment. Multi-tenant is a v2 conversation.
+
+## Supply chain
+
+Added 2026-07-31. Dependency risk is a security control here, not a maintenance chore.
+
+- **All four runtime dependency trees are clean at high/critical** (`proxy`, `playground`, `enablers/desktop`, `enablers/pulse-pbi`). The sweep that established this found real advisories in shipping code, including a `http-proxy-middleware` CRLF field-injection + Host-header routing bypass in the desktop enabler.
+- **PR gate** — `dependency-review` fails on high severity and enforces a permissive-only licence allowlist derived from the actual tree (1,556 packages swept; zero GPL/AGPL/SSPL). It reviews only what a PR changes.
+- **Default-branch scan** — `supply-chain.yml` runs weekly, on push to main, and on demand, because the PR gate never sees a CVE disclosed against already-merged code. Emits a CycloneDX SBOM per package (90-day retention) so "are we affected by X?" is a lookup during an incident.
+- **The gate blocks on runtime deps (`--omit=dev`)**; the full tree is reported without failing. That exemption names one specific advisory (`GHSA-mh99-v99m-4gvg`, reaching jest transitively, no in-range fix) rather than blanket-passing dev tooling — a finding of any other shape gets promoted.
+- **No third-party GitHub Action is trusted in these workflows.** Only npm built-ins (`npm audit`, `npm sbom`) and GitHub's own actions. CI actions run with repository credentials and that class of action has been compromised in the wild; anything added later gets pinned to a full commit SHA, not a tag.
+- **Lean by design.** 3 runtime packages in the proxy, 8 in the playground. Small attack surface is the cheapest control available, and additions should have to justify themselves.
 
 ## Inherited compliance posture
 

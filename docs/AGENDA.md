@@ -44,6 +44,19 @@ Ordered by impact × cost. Each item is independently shippable.
   container was never booted.** First person with docker should run it.
   Does NOT close AGENT-OBO, and does not by itself prove Power BI RLS.
 
+- [x] **DOC-ACCURACY-2026-07-31 — three docs were asserting controls that do
+  not exist.** Same class of defect as the `dependency-review` comment, found
+  by checking docs against code rather than against other docs. (1)
+  SECURITY.md "Logging and audit" claimed audit lines are written to
+  append-only files in dev and piped to a SIEM in production; `auditLog()` is
+  `console.log` and nothing else ([server.js:2356](../proxy/server.js#L2356)).
+  Corrected, with the real gap named and pointed at REBUILD-P1. (2) SECURITY.md
+  listed the per-user rate limit and spend guard as pending — both shipped
+  (`b1434a2`, `f8bc433`). (3) "Honest gaps" claimed no CVE scanning in CI,
+  now false. Also added the killswitch, OBO and process-local-ledger gaps,
+  which were real and unlisted. README / docs/README / QUALITY test counts
+  refreshed (they read 1137–1243 / 1382–1926, i.e. May–June numbers).
+
 - [ ] **DOC-COST-P2-COLLISION — two different items share one ID** — one
   `COST-P2` is marked `[x]` (duplicate allowlist fetch, closed in `0f03a27`);
   a second, unrelated `COST-P2` is `[ ]` open (dedupe on-load metadata
