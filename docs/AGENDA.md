@@ -44,6 +44,35 @@ Ordered by impact × cost. Each item is independently shippable.
   container was never booted.** First person with docker should run it.
   Does NOT close AGENT-OBO, and does not by itself prove Power BI RLS.
 
+- [x] **CI-PAPER-GATES-2026-07-31 — two CI gates were decorative; both fixed.**
+  Found by actually reading the run history instead of the workflow files.
+  (1) **`dependency-review` has never passed — 12 runs, 12 failures**, all
+  "Dependency review is not supported on this repository" because the repo's
+  Dependency Graph is off (its API answers 403). Every licence and severity
+  claim it appeared to make on PRs was inert. Kept, with the inertness and the
+  one-toggle fix documented in the file; the real gate is now
+  `scripts/check-licenses.mjs` (zero deps, reads lockfiles directly, 8 unit
+  tests on the SPDX parsing) wired into `supply-chain.yml` — 1,584 licensed
+  dependencies, all permissive. (2) **`smoke.yml` failed every run for days**
+  while BLOCKERS.md called it CLEARED: it asserted `surface-connector-*`
+  dropdowns that were deleted from the product when connector pickers moved to
+  Settings/BundleSwitcher. Re-pointed at shipped selectors; verified 6/6
+  locally under true CI conditions. **Still open for an owner:** the repo also
+  has `secret_scanning`, `secret_scanning_push_protection` and
+  `dependabot_security_updates` **disabled** on a PUBLIC repo — see
+  `SEC-REPO-SETTINGS` below.
+
+- [ ] **SEC-REPO-SETTINGS — four GitHub security toggles are off on a PUBLIC
+  repo (owner action, 5 minutes)** — verified via the API 2026-07-31:
+  `dependency_graph` (403; this is why dependency-review can never pass),
+  `secret_scanning` disabled, `secret_scanning_push_protection` disabled,
+  `dependabot_security_updates` disabled. Push protection is the one that
+  actually stops a Databricks PAT or a Power BI SP secret from being committed
+  to a public repository, and it is free. Enable at
+  Settings → Code security. Note push protection will start blocking pushes
+  that contain detected secrets — that is the point, but it changes the push
+  workflow, so it is the owner's call rather than a silent default.
+
 - [x] **DOC-ACCURACY-2026-07-31 — three docs were asserting controls that do
   not exist.** Same class of defect as the `dependency-review` comment, found
   by checking docs against code rather than against other docs. (1)

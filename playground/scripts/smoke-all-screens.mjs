@@ -70,26 +70,49 @@ await page.goto(BASE + "/?surface=ai-insights", { waitUntil: "domcontentloaded",
 await sleep(2500);
 check("App boots (proxy/react/bundle load)", (await page.evaluate(() => (document.body.innerText || "").includes("PulsePlay"))));
 
-// 2. Per-surface connector bar — 3 dropdowns, bindable
-await page.waitForFunction(() => {
-  const el = document.querySelector('[data-testid="surface-connector-ai-insights"]');
-  return el && el.querySelectorAll("option").length > 1;
-}, { timeout: 15000 }).catch(() => { /* */ });
-const dd = await page.evaluate(() => ({
-  ins: !!document.querySelector('[data-testid="surface-connector-ai-insights"]'),
-  ask: !!document.querySelector('[data-testid="surface-connector-ask-pulse"]'),
-  dash: !!document.querySelector('[data-testid="surface-connector-bi-viz"]'),
-}));
-check("Per-surface bar shows all 3 dropdowns (incl. Dashboard)", dd.ins && dd.ask && dd.dash, JSON.stringify(dd));
-if (!CI) {
-  // Binding-persist needs selectable profile options (real config) → local only.
-  await page.selectOption('[data-testid="surface-connector-ai-insights"]', "powerbi-dwd").catch(() => { /* */ });
-  await page.selectOption('[data-testid="surface-connector-ask-pulse"]', "foundation").catch(() => { /* */ });
-  await page.selectOption('[data-testid="surface-connector-bi-viz"]', "powerbi-dwd").catch(() => { /* */ });
-  await sleep(500);
-  const bound = await page.evaluate(() => { try { return JSON.parse(localStorage.getItem("pulseplay:surface-connectors") || "{}"); } catch { return {}; } });
-  check("Per-surface bindings persist (3 surfaces)", bound["ai-insights"] === "powerbi-dwd" && bound["ask-pulse"] === "foundation" && bound["bi-viz"] === "powerbi-dwd", JSON.stringify(bound));
-}
+// 2. Shell chrome + surface nav render (the anti-blank check that matters)
+//
+// This step used to assert three `surface-connector-*` dropdowns. That control
+// no longer exists: inline connector pickers were removed and selection moved to
+// Settings / FirstRunWizard / the BundleSwitcher chip (see CLAUDE.md). The
+// selector survived only here and in the enabler sync script, so the smoke had
+// been failing on EVERY run — verified 2026-07-31 across its whole history —
+// while BLOCKERS.md listed it as a cleared, working gate. A check that is always
+// red gates nothing.
+//
+// Replaced with the same INTENT against selectors the app actually ships: the
+// viewport shell mounted, the AI and BI panel chrome present, and all four
+// surface tabs reachable. If a future refactor moves these too, fix the
+// assertion deliberately — do not delete the step.
+await page.waitForFunction(
+  () => !!document.querySelector('[data-testid="pp-viewport-shell"]'),
+  { timeout: 15000 },
+).catch(() => { /* assertion below reports it */ });
+
+const shell = await page.evaluate(() => {
+  const text = document.body.innerText || "";
+  return {
+    viewport: !!document.querySelector('[data-testid="pp-viewport-shell"]'),
+    aiChrome: !!document.querySelector('[data-testid="pp-panel-chrome-ai"]'),
+    biChrome: !!document.querySelector('[data-testid="pp-panel-chrome-bi"]'),
+    tabs: ["Decisions", "AI Insights", "Ask Pulse", "Dashboard"].filter((t) => text.includes(t)),
+  };
+});
+check(
+  "Shell chrome + all 4 surface tabs render",
+  shell.viewport && shell.aiChrome && shell.biChrome && shell.tabs.length === 4,
+  JSON.stringify(shell),
+);
+
+// The active surface must show real content, not an empty div. With no creds the
+// honest render IS the no-spend empty state, so assert THAT rather than a
+// briefing we deliberately refuse to generate without intent.
+const surfaceCopy = await page.evaluate(() => (document.body.innerText || ""));
+check(
+  "AI Insights surface renders real content (no-spend empty state)",
+  /No briefing generated yet|Generate briefing/i.test(surfaceCopy),
+  `len=${surfaceCopy.length}`,
+);
 
 // Steps 3-5 need real credentials (live Power BI / Azure) → local only, skipped in CI.
 if (!CI) {

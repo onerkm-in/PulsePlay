@@ -12,7 +12,7 @@ Updated 2026-07-23.
 
 | Blocker | Status |
 |---|---|
-| **Smoke test not in CI** | ✅ CLEARED — `smoke.yml` runs a credential-free anti-blank UI smoke (app boots, connector bar, echarts-6 fixture paint, Settings, zero console errors) on every push/PR. The live-data checks stay local (need creds). |
+| **Smoke test not in CI** | ⚠️ **CLEARED, THEN SILENTLY BROKEN, RE-FIXED 2026-07-31.** `smoke.yml` runs a credential-free anti-blank UI smoke on every push/PR. But its step 2 asserted three `surface-connector-*` dropdowns, and that control was **removed from the product** when inline connector pickers moved to Settings / FirstRunWizard / the BundleSwitcher chip — the selector survived only in the smoke script. Result: the smoke failed on **every run** for days while this table said "CLEARED". Step 2 now asserts what the app actually ships (viewport shell + AI/BI panel chrome + all four surface tabs) plus the surface's real no-spend empty state. Verified locally 6/6 under true CI conditions (`served_mode: combined`, no kill switch). Live-data checks still stay local (need creds). **Lesson: a green row in this table is a claim, and claims need a run behind them.** |
 | **Per-user rate limit** | ✅ CLEARED — 60/min/user on the 9 cost-bearing AI paths (`b1434a2`). |
 | **Deploy-config silent placeholders** | ✅ CLEARED — `npm run validate-deploy` gate (`1f56f81`). |
 
