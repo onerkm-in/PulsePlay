@@ -29,7 +29,20 @@ const ABS_FLOOR = 0.5;
 
 const SUFFIX_MULTIPLIER = {
     k: 1e3, thousand: 1e3,
-    m: 1e6, million: 1e6, mm: 1e6,
+    m: 1e6, million: 1e6, mm: 1e6, mn: 1e6,
+    b: 1e9, bn: 1e9, billion: 1e9,
+    t: 1e12, trillion: 1e12,
+};
+
+// The Roman-scale notation convention (locked in DEC-UNITS: M = thousand,
+// MM = million, B = billion; K forbidden but still parsed as thousand so a
+// violating answer is judged on the magnitude its author meant; MN legacy
+// million). Word suffixes are unambiguous and identical in both scales.
+// Callers that grade Roman-notation prose (the evals harness) pass
+// { scale: 'roman' }; the default stays 'industry' for the FM grounding path.
+const ROMAN_SUFFIX_MULTIPLIER = {
+    k: 1e3, thousand: 1e3,
+    m: 1e3, mm: 1e6, mn: 1e6, million: 1e6,
     b: 1e9, bn: 1e9, billion: 1e9,
     t: 1e12, trillion: 1e12,
 };
@@ -39,7 +52,7 @@ const SUFFIX_MULTIPLIER = {
 //   - leading (?<![A-Za-z]) so "Q4"/"abc12" don't yield a stray number
 //   - trailing (?![A-Za-z]) so the "t" in "2026 total" isn't read as a
 //     trillions suffix; full-word suffixes are listed before single letters
-const NUM_RE = /(?<![A-Za-z])(-?)\s*\$?\s*(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)\s*(%|thousand|million|billion|trillion|mm|bn|[kmbt])?(?![A-Za-z])/gi;
+const NUM_RE = /(?<![A-Za-z])(-?)\s*\$?\s*(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)\s*(%|thousand|million|billion|trillion|mm|mn|bn|[kmbt])?(?![A-Za-z])/gi;
 
 /**
  * Parse a single matched numeric token into a normalized value.
@@ -48,15 +61,15 @@ const NUM_RE = /(?<![A-Za-z])(-?)\s*\$?\s*(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.
  * @param {string} [suffix]
  * @returns {{ value: number, isPercent: boolean, hadFormatSignal: boolean }}
  */
-function parseToken(sign, digits, suffix) {
+function parseToken(sign, digits, suffix, multipliers = SUFFIX_MULTIPLIER) {
     const hadComma = digits.includes(',');
     const hadDecimal = digits.includes('.');
     let value = parseFloat(digits.replace(/,/g, ''));
     const suf = (suffix || '').toLowerCase();
     const isPercent = suf === '%';
     let hadSuffix = false;
-    if (suf && suf !== '%' && SUFFIX_MULTIPLIER[suf]) {
-        value *= SUFFIX_MULTIPLIER[suf];
+    if (suf && suf !== '%' && multipliers[suf]) {
+        value *= multipliers[suf];
         hadSuffix = true;
     }
     if (sign === '-') value = -value;
@@ -119,13 +132,16 @@ function buildCandidates(columns, rows) {
 /**
  * @param {string} prose
  * @param {{ columns?: Array<string>, rows?: Array<Array<*>> }|null|undefined} groundedData
+ * @param {{ scale?: 'industry'|'roman' }} [opts] — which magnitude-suffix
+ *   convention the PROSE follows. Cells are always parsed industry-style.
  * @returns {{
  *   status: string, grounded: boolean, rowCount: number,
  *   checked: number, matched: number,
  *   unmatched: Array<{ raw: string, value: number }>
  * }}
  */
-function verifyGrounding(prose, groundedData) {
+function verifyGrounding(prose, groundedData, opts) {
+    const multipliers = opts && opts.scale === 'roman' ? ROMAN_SUFFIX_MULTIPLIER : SUFFIX_MULTIPLIER;
     const rows = groundedData && Array.isArray(groundedData.rows) ? groundedData.rows : [];
     const columns = groundedData && Array.isArray(groundedData.columns) ? groundedData.columns : [];
 
@@ -141,7 +157,7 @@ function verifyGrounding(prose, groundedData) {
     NUM_RE.lastIndex = 0;
     let m;
     while ((m = NUM_RE.exec(text)) !== null) {
-        const tok = parseToken(m[1], m[2], m[3]);
+        const tok = parseToken(m[1], m[2], m[3], multipliers);
         if (!Number.isFinite(tok.value)) continue;
         if (looksLikeYear(tok)) continue;
         checked++;
@@ -168,5 +184,5 @@ function verifyGrounding(prose, groundedData) {
 module.exports = {
     verifyGrounding,
     // exported for tests
-    __internals: { parseToken, parseCell, buildCandidates, approxEqual },
+    __internals: { parseToken, parseCell, buildCandidates, approxEqual, ROMAN_SUFFIX_MULTIPLIER },
 };

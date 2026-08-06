@@ -96,3 +96,43 @@ describe('groundingVerifier — verifyGrounding', () => {
         expect(v.status).toBe('verified');
     });
 });
+
+describe('groundingVerifier — Roman-scale mode', () => {
+    // The DEC-UNITS notation convention: M = thousand, MM = million, B = billion.
+    // The evals harness grades prose written under that convention; the default
+    // industry scale would read "128M" as 128 million and false-flag it.
+    const BACKORDERS = {
+        columns: ['measure', 'value'],
+        rows: [['Backorder Units', 128_400], ['Deduction Cost', 2_297_200.86]],
+    };
+
+    test('roman: M means thousand', () => {
+        const v = verifyGrounding('Backorders reached 128.4M units.', BACKORDERS, { scale: 'roman' });
+        expect(v.status).toBe('verified');
+    });
+
+    test('roman: MM means million', () => {
+        const v = verifyGrounding('Deductions cost $2.30MM.', BACKORDERS, { scale: 'roman' });
+        expect(v.status).toBe('verified');
+    });
+
+    test('roman: legacy MN reads as million', () => {
+        const v = verifyGrounding('Deductions cost $2.30MN.', BACKORDERS, { scale: 'roman' });
+        expect(v.status).toBe('verified');
+    });
+
+    test('roman: forbidden K still parses as thousand (notation gate flags it separately)', () => {
+        const v = verifyGrounding('Backorders reached 128.4K units.', BACKORDERS, { scale: 'roman' });
+        expect(v.status).toBe('verified');
+    });
+
+    test('industry default is unchanged: M stays million', () => {
+        const v = verifyGrounding('Backorders reached 128.4M units.', BACKORDERS);
+        expect(v.status).toBe('unverified'); // 128,400,000 matches nothing
+    });
+
+    test('industry: MN now reads as million too', () => {
+        const v = verifyGrounding('Deductions cost $2.30MN.', BACKORDERS);
+        expect(v.status).toBe('verified');
+    });
+});
