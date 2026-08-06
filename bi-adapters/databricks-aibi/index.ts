@@ -13,14 +13,17 @@
 //                 Works for dashboards that are published with public-access
 //                 enabled, OR when paired with a workspace that has SSO.
 //
-// v1 (next cycle): swap to the `@databricks/aibi-client` SDK for proper
-//                  token-refresh, M2M auth, and the event bridge documented
-//                  by Databricks. The SDK gives us:
-//                    - `DashboardEmbedClient({ instanceUrl, dashboardId,
-//                       token, container, getNewToken })` — auto-refreshes
-//                       tokens ~5 min before expiry
-//                    - `hideDatabricksLogo` option (2026 addition)
-//                    - Real event hooks (selection / filter / drill-through)
+// SDK path (implemented below, best-effort): when a full SDK config is
+//                  supplied, the adapter dynamically imports
+//                  `@databricks/aibi-client` and constructs its documented
+//                  export `DatabricksDashboard({ instanceUrl, workspaceId,
+//                  dashboardId, token, container, config })`. The package is
+//                  deliberately NOT a declared dependency — and cannot be
+//                  yet: as of 2026-08-06 no published version declares a
+//                  license field, which fails the repo licence gate (see
+//                  playground/package.json comments). Absent the package the
+//                  adapter falls through to the native Lakeview renderer or
+//                  the iframe embed.
 //                  Token issuance lives in the proxy at
 //                  `/assistant/embed-token/databricks-aibi` — mirrors the
 //                  existing `/assistant/embed-token/powerbi` server-side
