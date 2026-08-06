@@ -1,0 +1,116 @@
+{
+    "$comment": [
+        "Golden cases for the powerbi-semantic-model connector (powerbi-dwd, the",
+        "PulsePlay_SCM_Synthetic dataset). The dataset is built over the SAME",
+        "workspace.databrickspractice star as the Genie space - PBI DAX measures are",
+        "SUM-then-DIVIDE replicas of the metric-view formulas, verified to the decimal",
+        "(docs/synthetic_poc/PBI_APPLES_TO_APPLES.md). So truth comes from the",
+        "warehouse flat views (vw_pbi_scm_*) via the Genie profile's warehouse, and",
+        "the answer comes from deterministic DAX with zero LLM calls: answerProfile",
+        "and truthProfile deliberately differ.",
+        "",
+        "Questions name the DAX measures nearly verbatim because this connector is a",
+        "template matcher, not a language model - the eval grades the matcher +",
+        "template + executeQueries chain, and phrasing outside the matcher's",
+        "vocabulary tests nothing but the fallback message.",
+        "",
+        "Totals span the whole 2024-01 .. 2026-06 window (no year filter): the",
+        "'total' template computes the grand total of a measure."
+    ],
+    "table": "workspace.databrickspractice.vw_pbi_scm_*",
+    "connector": "powerbi-semantic-model",
+    "answerProfile": "powerbi-dwd",
+    "truthProfile": "genie-scm-poc",
+    "cases": [
+        {
+            "id": "pbi-total-net-sales",
+            "question": "What is the total Net Sales USD?",
+            "why": "The headline currency measure through the total template. Grand total ~4.68B: the B-scale case for the notation gate on the deterministic path.",
+            "referenceSql": "SELECT ROUND(SUM(net_sales_usd), 0) AS net_sales_usd FROM workspace.databrickspractice.vw_pbi_scm_performance",
+            "column": "net_sales_usd",
+            "expectPercent": false,
+            "tolerancePct": 1
+        },
+        {
+            "id": "pbi-total-cogs",
+            "question": "What is the total COGS USD?",
+            "why": "Second currency measure; proves measure resolution picks COGS over the lexically-near Net Sales.",
+            "referenceSql": "SELECT ROUND(SUM(cogs_usd), 0) AS cogs_usd FROM workspace.databrickspractice.vw_pbi_scm_performance",
+            "column": "cogs_usd",
+            "expectPercent": false,
+            "tolerancePct": 1
+        },
+        {
+            "id": "pbi-total-ordered-qty",
+            "question": "What is the total Ordered Qty?",
+            "why": "Additive volume on the OFR fact - the denominator every fill rate depends on.",
+            "referenceSql": "SELECT SUM(ordered_qty) AS ordered_qty FROM workspace.databrickspractice.vw_pbi_scm_ofr",
+            "column": "ordered_qty",
+            "expectPercent": false,
+            "tolerancePct": 1
+        },
+        {
+            "id": "pbi-total-delivered-qty",
+            "question": "What is the total Delivered Qty?",
+            "why": "The numerator to pbi-total-ordered-qty; together they bound the fill-rate case below.",
+            "referenceSql": "SELECT SUM(delivered_qty) AS delivered_qty FROM workspace.databrickspractice.vw_pbi_scm_ofr",
+            "column": "delivered_qty",
+            "expectPercent": false,
+            "tolerancePct": 1
+        },
+        {
+            "id": "pbi-ofr-overall",
+            "question": "What is the overall Order Fill Rate Pct?",
+            "why": "The arithmetic-trap KPI on the deterministic path: the DAX measure divides the SUMs. A regression to averaging the rate column would still return a plausible percentage - this reconciliation is what catches it.",
+            "referenceSql": "SELECT ROUND(100.0 * SUM(delivered_qty) / NULLIF(SUM(ordered_qty), 0), 2) AS ofr_pct FROM workspace.databrickspractice.vw_pbi_scm_ofr",
+            "column": "ofr_pct",
+            "expectPercent": true,
+            "tolerancePct": 1
+        },
+        {
+            "id": "pbi-otif-overall",
+            "question": "What is the overall OTIF Pct?",
+            "why": "Same trap, different numerator pair (otif_lines/order_lines) - proves the fix generalizes past one measure.",
+            "referenceSql": "SELECT ROUND(100.0 * SUM(otif_lines) / NULLIF(SUM(order_lines), 0), 2) AS otif_pct FROM workspace.databrickspractice.vw_pbi_scm_ofr",
+            "column": "otif_pct",
+            "expectPercent": true,
+            "tolerancePct": 1
+        },
+        {
+            "id": "pbi-gross-margin-overall",
+            "question": "What is the overall Gross Margin Pct?",
+            "why": "A two-column derived rate: (sales - COGS) / sales. Only the measure definition produces it; no single column sums to this.",
+            "referenceSql": "SELECT ROUND(100.0 * (SUM(net_sales_usd) - SUM(cogs_usd)) / NULLIF(SUM(net_sales_usd), 0), 2) AS gross_margin_pct FROM workspace.databrickspractice.vw_pbi_scm_performance",
+            "column": "gross_margin_pct",
+            "expectPercent": true,
+            "tolerancePct": 1
+        },
+        {
+            "id": "pbi-total-units-produced",
+            "question": "What is the total Units Produced?",
+            "why": "Operations-fact volume; third fact table, so all three flat views are exercised.",
+            "referenceSql": "SELECT SUM(units_produced) AS units_produced FROM workspace.databrickspractice.vw_pbi_scm_operations",
+            "column": "units_produced",
+            "expectPercent": false,
+            "tolerancePct": 1
+        },
+        {
+            "id": "pbi-total-ghg",
+            "question": "What is the total GHG Emissions tCO2e?",
+            "why": "The unit-suffix measure (tCO2e) that the matcher's measureVariants fix exists for - a regression there turns this into the 'I can answer...' fallback, which reconciles as a hard miss.",
+            "referenceSql": "SELECT ROUND(SUM(ghg_tco2e), 0) AS ghg_tco2e FROM workspace.databrickspractice.vw_pbi_scm_operations",
+            "column": "ghg_tco2e",
+            "expectPercent": false,
+            "tolerancePct": 1
+        },
+        {
+            "id": "pbi-total-hours-worked",
+            "question": "What is the total Hours Worked?",
+            "why": "Safety-rate denominator on the deterministic path, mirroring mv-hours-worked-2024 on the Genie path for cross-connector parity.",
+            "referenceSql": "SELECT SUM(hours_worked) AS hours_worked FROM workspace.databrickspractice.vw_pbi_scm_operations",
+            "column": "hours_worked",
+            "expectPercent": false,
+            "tolerancePct": 1
+        }
+    ]
+}

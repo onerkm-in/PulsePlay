@@ -1,0 +1,151 @@
+{
+    "$comment": [
+        "Golden cases for the genie-scm-poc space, asked against the SAME estate the",
+        "space is configured over: the workspace.databrickspractice metric views",
+        "(mtr_pp_syn_ltm_sc_fct_*). Reference SQL computes truth through MEASURE() on",
+        "the same metric views, so the check is 'does Genie's NL->SQL agree with the",
+        "governed measure definition' - the exact failure mode the space instructions",
+        "exist to prevent (summing raw columns, averaging a rate, mixing YTD windows).",
+        "",
+        "The data window is 2024/2025 full years + 2026 YTD (Jan-Jun, as-of",
+        "30-Jun-2026). 'Current year' questions mean 2026 YTD, matching the space",
+        "instructions. Reference SQL names the year explicitly so truth cannot drift",
+        "even if the space's window interpretation regresses - that regression then",
+        "shows up as a reconciliation failure, which is the point.",
+        "",
+        "Every case asks for a single number; notation compliance (M = thousand,",
+        "MM = million, B = billion, K forbidden) is checked automatically."
+    ],
+    "table": "workspace.databrickspractice.mtr_pp_syn_ltm_sc_fct_*",
+    "connector": "genie",
+    "answerProfile": "genie-scm-poc",
+    "truthProfile": "genie-scm-poc",
+    "cases": [
+        {
+            "id": "mv-ofr-2025",
+            "question": "What was the Order Fill Rate percentage for the full year 2025? Give a single number.",
+            "why": "The headline rate KPI on the space's own metric view. A connector that averages the rate across rows instead of letting the measure SUM-then-divide lands close and wrong.",
+            "referenceSql": "SELECT ROUND(MEASURE(`Order Fill Rate Pct`), 2) AS ofr_pct FROM workspace.databrickspractice.mtr_pp_syn_ltm_sc_fct_ofr WHERE Year = 2025",
+            "column": "ofr_pct",
+            "expectPercent": true,
+            "tolerancePct": 1
+        },
+        {
+            "id": "mv-otif-2025",
+            "question": "What was the OTIF percentage for the full year 2025? Give a single number.",
+            "why": "Second rate on the same view; pairs with mv-ofr-2025 to prove measure selection is by name, not by position.",
+            "referenceSql": "SELECT ROUND(MEASURE(`OTIF Pct`), 2) AS otif_pct FROM workspace.databrickspractice.mtr_pp_syn_ltm_sc_fct_ofr WHERE Year = 2025",
+            "column": "otif_pct",
+            "expectPercent": true,
+            "tolerancePct": 1
+        },
+        {
+            "id": "mv-otif-2026-ytd",
+            "question": "What is the OTIF percentage for the current year to date? Give a single number.",
+            "why": "The YTD window trap: 'current year' must resolve to 2026 Jan-Jun, not full-year 2025 and not a trailing-12-month window. The reference pins Year=2026 so a window mistake reconciles as a miss.",
+            "referenceSql": "SELECT ROUND(MEASURE(`OTIF Pct`), 2) AS otif_pct FROM workspace.databrickspractice.mtr_pp_syn_ltm_sc_fct_ofr WHERE Year = 2026",
+            "column": "otif_pct",
+            "expectPercent": true,
+            "tolerancePct": 1
+        },
+        {
+            "id": "mv-ordered-qty-2025",
+            "question": "How many units were ordered in total during 2025? Give a single number.",
+            "why": "A plain additive magnitude in the tens of millions - exactly where Roman-scale notation earns its keep (MM, never M-for-million).",
+            "referenceSql": "SELECT MEASURE(`Ordered Qty`) AS ordered_qty FROM workspace.databrickspractice.mtr_pp_syn_ltm_sc_fct_ofr WHERE Year = 2025",
+            "column": "ordered_qty",
+            "expectPercent": false,
+            "tolerancePct": 1
+        },
+        {
+            "id": "mv-net-sales-2024",
+            "question": "What was total net sales in 2024? Give a single figure.",
+            "why": "Currency at billion scale (~1.77B). Checks both the measure path and that the B suffix is applied at the right magnitude.",
+            "referenceSql": "SELECT ROUND(MEASURE(`Net Sales USD`), 0) AS net_sales_usd FROM workspace.databrickspractice.mtr_pp_syn_ltm_sc_fct_performance WHERE Year = 2024",
+            "column": "net_sales_usd",
+            "expectPercent": false,
+            "tolerancePct": 1
+        },
+        {
+            "id": "mv-net-sales-2026-ytd",
+            "question": "What is net sales for the current year to date? Give a single figure.",
+            "why": "The partial-year trap on a currency measure: 2026 YTD (~1.03B) vs a naive full-year expectation. A connector projecting or comparing against full-year 2025 misses by ~45%.",
+            "referenceSql": "SELECT ROUND(MEASURE(`Net Sales USD`), 0) AS net_sales_usd FROM workspace.databrickspractice.mtr_pp_syn_ltm_sc_fct_performance WHERE Year = 2026",
+            "column": "net_sales_usd",
+            "expectPercent": false,
+            "tolerancePct": 1
+        },
+        {
+            "id": "mv-cogs-2025",
+            "question": "What was total COGS in 2025? Give a single figure.",
+            "why": "A lower-is-better currency measure; also verifies the connector distinguishes COGS from net sales on the same view.",
+            "referenceSql": "SELECT ROUND(MEASURE(`COGS USD`), 0) AS cogs_usd FROM workspace.databrickspractice.mtr_pp_syn_ltm_sc_fct_performance WHERE Year = 2025",
+            "column": "cogs_usd",
+            "expectPercent": false,
+            "tolerancePct": 1
+        },
+        {
+            "id": "mv-gross-margin-2026-ytd",
+            "question": "What is the gross margin percentage for the current year to date? Give a single number.",
+            "why": "A derived rate (sales minus COGS over sales) that CANNOT be computed by summing one column - the measure must be used as defined.",
+            "referenceSql": "SELECT ROUND(MEASURE(`Gross Margin Pct`), 2) AS gross_margin_pct FROM workspace.databrickspractice.mtr_pp_syn_ltm_sc_fct_performance WHERE Year = 2026",
+            "column": "gross_margin_pct",
+            "expectPercent": true,
+            "tolerancePct": 1
+        },
+        {
+            "id": "mv-ghg-2024",
+            "question": "What were total GHG emissions in tonnes CO2e for 2024? Give a single number.",
+            "why": "Sustainability magnitude (~2.5MM tonnes) on the operations view; the down-is-good direction is covered by guidance, the NUMBER is covered here.",
+            "referenceSql": "SELECT ROUND(MEASURE(`GHG Emissions tCO2e`), 0) AS ghg_tco2e FROM workspace.databrickspractice.mtr_pp_syn_ltm_sc_fct_operations WHERE Year = 2024",
+            "column": "ghg_tco2e",
+            "expectPercent": false,
+            "tolerancePct": 1
+        },
+        {
+            "id": "mv-ghg-2026-ytd",
+            "question": "What are GHG emissions in tonnes CO2e for the current year to date? Give a single number.",
+            "why": "YTD window + declining-trend measure together: 1.14MM only if the window is right.",
+            "referenceSql": "SELECT ROUND(MEASURE(`GHG Emissions tCO2e`), 0) AS ghg_tco2e FROM workspace.databrickspractice.mtr_pp_syn_ltm_sc_fct_operations WHERE Year = 2026",
+            "column": "ghg_tco2e",
+            "expectPercent": false,
+            "tolerancePct": 1
+        },
+        {
+            "id": "mv-units-produced-2026-ytd",
+            "question": "How many units were produced in the current year to date? Give a single number.",
+            "why": "Additive production volume on the operations view, second YTD-window check on a different fact.",
+            "referenceSql": "SELECT MEASURE(`Units Produced`) AS units_produced FROM workspace.databrickspractice.mtr_pp_syn_ltm_sc_fct_operations WHERE Year = 2026",
+            "column": "units_produced",
+            "expectPercent": false,
+            "tolerancePct": 1
+        },
+        {
+            "id": "mv-hours-worked-2024",
+            "question": "How many hours were worked across all plants in 2024? Give a single number.",
+            "why": "The denominator LTIR/TRIR depend on; if this drifts, every safety rate silently drifts with it.",
+            "referenceSql": "SELECT MEASURE(`Hours Worked`) AS hours_worked FROM workspace.databrickspractice.mtr_pp_syn_ltm_sc_fct_operations WHERE Year = 2024",
+            "column": "hours_worked",
+            "expectPercent": false,
+            "tolerancePct": 1
+        },
+        {
+            "id": "mv-forecast-accuracy-2025",
+            "question": "What was the forecast accuracy percentage for the full year 2025? Give a single number.",
+            "why": "A WMAPE-derived measure with an ABS() inside - unreproducible by any naive aggregation, so agreement is strong evidence the measure was actually used.",
+            "referenceSql": "SELECT ROUND(MEASURE(`Forecast Accuracy Pct`), 2) AS forecast_accuracy_pct FROM workspace.databrickspractice.mtr_pp_syn_ltm_sc_fct_performance WHERE Year = 2025",
+            "column": "forecast_accuracy_pct",
+            "expectPercent": true,
+            "tolerancePct": 1
+        },
+        {
+            "id": "mv-energy-intensity-2025",
+            "question": "What was the energy intensity in kWh per unit produced for 2025? Give a single number.",
+            "why": "A small ratio (single-digit kWh/unit): catches unit-scale errors that a percent-tolerance check on big magnitudes never sees.",
+            "referenceSql": "SELECT ROUND(MEASURE(`Energy Intensity kWh per Unit`), 3) AS energy_intensity FROM workspace.databrickspractice.mtr_pp_syn_ltm_sc_fct_operations WHERE Year = 2025",
+            "column": "energy_intensity",
+            "expectPercent": false,
+            "tolerancePct": 2
+        }
+    ]
+}

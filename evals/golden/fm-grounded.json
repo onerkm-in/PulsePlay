@@ -1,0 +1,119 @@
+{
+    "$comment": [
+        "Golden cases for the Foundation Model connector's GROUNDED slice: the case",
+        "supplies the rows (groundedData), the model must narrate them, and truth is",
+        "the supplied value itself (`expected`) - reference SQL would prove nothing",
+        "the rows don't already prove, and needs no warehouse. What IS under test:",
+        "the FM path forwards groundedData, the narration cites the right figure",
+        "(reconcile), invents no others (grounding gate), and obeys the Roman-scale",
+        "notation convention. This is the eval for 'retrieve then narrate' - the",
+        "ungrounded FM failure mode is confidently citing numbers nobody supplied.",
+        "",
+        "Values mirror the synthetic SCM star's documented reconciled figures",
+        "(docs/synthetic_poc/PBI_APPLES_TO_APPLES.md) so a human reading a transcript",
+        "recognizes them, but the eval holds for ANY values - the rows are the truth",
+        "by construction.",
+        "",
+        "No truthProfile on purpose: these cases must run with zero warehouse access."
+    ],
+    "connector": "foundation-model",
+    "answerProfile": "foundation",
+    "cases": [
+        {
+            "id": "fm-otif-cite",
+            "question": "In two sentences, summarize on-time delivery performance for 2026 year to date, citing the OTIF percentage.",
+            "why": "The basic faithful-citation case: one rate to cite, two decoys beside it. Reconcile checks the cited OTIF; the grounding gate checks the decoys weren't garbled into new numbers.",
+            "groundedData": {
+                "columns": ["measure", "value"],
+                "rows": [["OTIF Pct", 94.45], ["Order Fill Rate Pct", 99.04], ["Order Lines", 310450]]
+            },
+            "expected": 94.45,
+            "expectPercent": true,
+            "tolerancePct": 0.5
+        },
+        {
+            "id": "fm-net-sales-cite",
+            "question": "State net sales for 2025 in one sentence, citing the exact figure.",
+            "why": "Billion-scale currency: the narration must land at 1.88B, and the notation gate rejects the K/M-for-million habits that misstate it by three orders of magnitude.",
+            "groundedData": {
+                "columns": ["year", "net_sales_usd"],
+                "rows": [[2024, 1771950000], [2025, 1877920000], [2026, 1031410000]]
+            },
+            "expected": 1877920000,
+            "expectPercent": false,
+            "tolerancePct": 1
+        },
+        {
+            "id": "fm-ghg-trend-cite",
+            "question": "Describe the GHG emissions trend across these years in two sentences, citing the 2026 year-to-date figure.",
+            "why": "A declining series where the model must pick the RIGHT year's value to cite - trend prose loves to cite the biggest number instead.",
+            "groundedData": {
+                "columns": ["year", "ghg_tco2e"],
+                "rows": [[2024, 2523750], [2025, 2399415], [2026, 1138707]]
+            },
+            "expected": 1138707,
+            "expectPercent": false,
+            "tolerancePct": 1
+        },
+        {
+            "id": "fm-gross-margin-cite",
+            "question": "In one sentence, state the gross margin percentage for 2026 year to date.",
+            "why": "A percent under 100 next to percents of similar size (55.60 vs 55.23 vs 53.84): tolerance is tightened so citing an adjacent year fails rather than squeaking by.",
+            "groundedData": {
+                "columns": ["year", "gross_margin_pct"],
+                "rows": [[2024, 53.84], [2025, 55.23], [2026, 55.6]]
+            },
+            "expected": 55.6,
+            "expectPercent": true,
+            "tolerancePct": 0.5
+        },
+        {
+            "id": "fm-ofr-yoy-cite",
+            "question": "Compare the Order Fill Rate between 2024 and 2026 year to date in two sentences, citing both percentages.",
+            "why": "Two required citations in one answer. Reconcile anchors on the 2026 value; the grounding gate requires the 2024 figure to also come from the rows rather than being paraphrased into a new number.",
+            "groundedData": {
+                "columns": ["year", "order_fill_rate_pct"],
+                "rows": [[2024, 97.45], [2025, 98.24], [2026, 99.04]]
+            },
+            "expected": 99.04,
+            "expectPercent": true,
+            "tolerancePct": 0.5
+        },
+        {
+            "id": "fm-units-produced-cite",
+            "question": "State total units produced for 2025 in one sentence, citing the exact figure.",
+            "why": "A mid-scale count (tens of millions) - the MM boundary case for the notation convention on narrated output.",
+            "groundedData": {
+                "columns": ["year", "units_produced"],
+                "rows": [[2024, 40120000], [2025, 42530000], [2026, 22610000]]
+            },
+            "expected": 42530000,
+            "expectPercent": false,
+            "tolerancePct": 1
+        },
+        {
+            "id": "fm-energy-intensity-cite",
+            "question": "In one sentence, state the energy intensity in kWh per unit for 2025.",
+            "why": "A small ratio (single digits): no magnitude suffix applies, so this catches a model that reflexively scales everything.",
+            "groundedData": {
+                "columns": ["year", "energy_intensity_kwh_per_unit"],
+                "rows": [[2024, 6.31], [2025, 6.02], [2026, 5.74]]
+            },
+            "expected": 6.02,
+            "expectPercent": false,
+            "tolerancePct": 1
+        },
+        {
+            "id": "fm-kpi-snapshot-cite",
+            "question": "Write a two-sentence KPI snapshot for 2026 year to date from these figures, citing OTIF and net sales.",
+            "why": "The composite case closest to real product output: multiple measures of mixed kinds in one narration. Reconcile anchors on OTIF; grounding must hold across everything else cited.",
+            "groundedData": {
+                "columns": ["measure", "value"],
+                "rows": [["OTIF Pct", 94.45], ["Order Fill Rate Pct", 99.04], ["Net Sales USD", 1031410000], ["Gross Margin Pct", 55.6], ["GHG Emissions tCO2e", 1138707]]
+            },
+            "expected": 94.45,
+            "expectPercent": true,
+            "tolerancePct": 0.5
+        }
+    ]
+}
