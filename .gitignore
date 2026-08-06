@@ -29,6 +29,9 @@ proxy/.env.local
 # LLM session state (per-session, gitignored)
 .pulseplay-session.state.json
 
+# Local dev IdP runtimes (Keycloak zip + JRE fetched by dev/idp/run-keycloak-nodocker.ps1)
+dev/idp/.runtime/
+
 # Claude Code session cache (per-user, never committed)
 .claude/
 

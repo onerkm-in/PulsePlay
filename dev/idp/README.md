@@ -2,9 +2,10 @@
 
 [docs/BLOCKERS.md](../../docs/BLOCKERS.md) §3 lists "prove Power BI RLS under
 On-Behalf-Of" as **externally blocked** because it needs a real IdP, and the
-Okta pilot is deferred to a PROD gate. Meanwhile `PROXY_AUTH_MODE=idp` is
-shipped, fail-closed-tested, and has never been exercised against an actual
-token issuer.
+Okta pilot is deferred to a PROD gate. `PROXY_AUTH_MODE=idp` is shipped and
+fail-closed-tested; as of 2026-08-06 it has also been **exercised against an
+actual token issuer** — see "Verify it" below for what was proven and how to
+re-run it.
 
 Keycloak is an actual token issuer. It signs real RS256 JWTs against a real
 JWKS endpoint, so the proxy's verification path runs for real — issuer,
@@ -31,6 +32,19 @@ of a dev laptop is how a convenience becomes an incident.
 docker compose -f dev/idp/docker-compose.yml up -d
 ```
 
+No docker on the box? Same Keycloak release, bare metal:
+
+```powershell
+.\dev\idp\run-keycloak-nodocker.ps1
+```
+
+That script fetches the SAME pinned Keycloak 26.0.7 the compose file pins, plus
+a pinned Eclipse Temurin 21 JRE to run it on (both SHA256-verified — the
+Temurin pin cross-checked against Adoptium's published checksum, the Keycloak
+pin recorded from the verified first fetch), caches them in the gitignored
+`.runtime/`, and boots with the same realm import, loopback-only, same port.
+Nothing is installed system-wide and nothing enters a dependency tree.
+
 Admin console at <http://127.0.0.1:7010> (`admin` / `admin`). The realm imports
 on first boot.
 
@@ -53,6 +67,22 @@ curl -H "Authorization: Bearer $t" http://127.0.0.1:7000/assistant/capabilities
 
 .\dev\idp\get-token.ps1 planner -Decode   # see the claims
 ```
+
+## Verify it
+
+```powershell
+node dev/idp/verify-idp-live.mjs
+```
+
+With the IdP up, this spawns the proxy itself under `PROXY_AUTH_MODE=idp` and
+proves the half of the auth story jest deliberately cannot reach
+(`idpMiddleware` short-circuits under `NODE_ENV=test`, so unit tests cover
+claim shapes and mode contracts, never signatures). Seven checks: both realm
+mappers put roles and audience where the proxy reads them; an anonymous
+request 401s; valid `manager` and `norole` tokens pass authentication; a
+tampered signature 401s; and a second proxy spawn expecting a different
+audience rejects the otherwise-valid token. First green run: 2026-08-06, 7/7,
+against the no-docker boot.
 
 ## The three users
 
