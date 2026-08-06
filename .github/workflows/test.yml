@@ -103,6 +103,11 @@ jobs:
       # (run-live.mjs) costs real model and warehouse calls and is never wired
       # into CI; see evals/README.md.
       - run: node --test tests/*.test.mjs
+      # Doc claims vs code: the automated version of the 2026-07-31 hand audit
+      # (93042b6). Zero deps, ~1s. Fails when a doc asserts a path, link, or
+      # anchored code fact that no longer holds. Lives in this job because it
+      # needs nothing but node and the checkout.
+      - run: node ../scripts/check-doc-claims.mjs
 
   pulse-pbi:
     name: Pulse PBI enabler (lint + unit)

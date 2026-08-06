@@ -78,11 +78,11 @@ ANY combination of (vendor, connector) is valid. Switching either is independent
 
 | Path | Purpose |
 |------|---------|
-| `playground/src/App.tsx` | Sidebar + canvas shell. Hosts UnifiedAssistantSurface (Chat) or PulseShell (Workbench, the default) + BIPanel. Vendor (Y) + connector (X) selection now lives in Settings/FirstRunWizard + the BundleSwitcher chip, not inline pickers (the old inline `ConnectorPicker` was removed) |
+| `playground/src/App.tsx` | Bootstrap shell: routing, allowlist + settings providers, wizards. The user-visible screen renders through PulsePlayScreen. Vendor (Y) + connector (X) selection lives in Settings/FirstRunWizard + the BundleSwitcher chip, not inline pickers (the old inline `ConnectorPicker` was removed) |
 | `playground/src/biPanel/BIAdapter.ts` | Vendor-agnostic contract every adapter implements |
 | `playground/src/biPanel/BIPanel.tsx` | Generic host component — calls `mount/on/send/destroy` on any adapter |
 | `playground/src/biPanel/registry.ts` | Lazy adapter loader (Vite code-splits per vendor) |
-| `playground/src/components/UnifiedAssistantSurface.tsx` | The whole-point AI assistant (the "v0"/Chat surface; CLAUDE history called this `AISidebar` — that file no longer exists). Talks to the proxy, accumulates BI event context |
+| `playground/src/components/PulsePlayScreen.tsx` | The single owner of the user-visible screen (Chat + Workbench + Dashboard slots). Successive renames buried here: `AISidebar` → `UnifiedAssistantSurface` → this; both predecessor files are gone |
 | `bi-adapters/generic-iframe/` | Always-works iframe-with-URL escape hatch |
 | `bi-adapters/{powerbi,tableau,qlik,looker}/` | Vendor stubs (extend GenericIframeAdapter today; v1 wires real SDK) |
 | `proxy/server.js` | Express proxy — connector-agnostic backbone (copied from the sister project) |
