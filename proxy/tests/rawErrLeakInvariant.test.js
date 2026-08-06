@@ -29,9 +29,18 @@ const fs = require('fs');
 const path = require('path');
 
 const SERVER_JS_PATH = path.join(__dirname, '..', 'server.js');
+const CONNECTORS_DIR = path.join(__dirname, '..', 'connectors');
 
+// The invariant follows the routes: connector-plugin migrations (Phase B+)
+// move whole route blocks out of server.js into proxy/connectors/, so the
+// scan covers both locations — otherwise each migration would quietly
+// shrink the surface this test protects.
 function loadServerSourceStripped() {
-    const raw = fs.readFileSync(SERVER_JS_PATH, 'utf8');
+    const files = [SERVER_JS_PATH];
+    for (const f of fs.readdirSync(CONNECTORS_DIR)) {
+        if (f.endsWith('.js') && !f.startsWith('_')) files.push(path.join(CONNECTORS_DIR, f));
+    }
+    const raw = files.map((f) => fs.readFileSync(f, 'utf8')).join('\n');
     return raw
         .replace(/\/\/.*$/gm, '')                  // line comments
         .replace(/\/\*[\s\S]*?\*\//g, '');          // block comments

@@ -44,6 +44,13 @@ const REQUIRED_DEP_KEYS = Object.freeze([
     'conversationDispatch',      // registry: powers /assistant/conversations/start + /messages
     'callLlmProviders',          // registry: Map<engine, build> for /insights/suggest-metric-rules
     'sectionedRunners',          // registry: powers SSE /assistant/conversations/start-sectioned
+    // Phase B additions — each is consumed by at least two connectors:
+    'resolveEngine',             // profile → engine tag (openai / bedrock-rag / bedrock-direct)
+    'sendAllowlistRejection',    // 403 + audit for allowlist-guard rejections (openai + bedrock health)
+    'parseClientMaxRetries',     // Settings "Validation retries" lever (genie / openai / bedrock)
+    'runAnalyticsOrchestrator',  // grounded analytics entry point (openai + bedrock-direct)
+    'sanitizeUsageBlock',        // token-usage normaliser (bedrock / foundation / genie passthrough)
+    'sessionStateTtlMs',         // conversation-state TTL shared by openai history + bedrock sessions
 ]);
 
 // Optional shared helpers — wired only when the host supplies them, so the

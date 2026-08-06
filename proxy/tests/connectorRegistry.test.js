@@ -151,10 +151,10 @@ describe('buildConnectorHost', () => {
 });
 
 describe('Phase B — real proxy/connectors/ discovers the migrated connectors', () => {
-    test('the live connectors dir discovers decision-assist (first real drop-in) and nothing malformed', () => {
+    test('the live connectors dir discovers the migrated connectors and nothing malformed', () => {
         const warns = [];
         const found = discoverConnectors(REAL_DIR, { onWarn: (m) => warns.push(m) });
-        expect(found.map((c) => c.id).sort()).toEqual(['decision-assist', 'decision-canvas']);
+        expect(found.map((c) => c.id).sort()).toEqual(['bedrock', 'decision-assist', 'decision-canvas']);
         expect(warns).toEqual([]); // nothing malformed; _template + infra are filtered silently
     });
 });

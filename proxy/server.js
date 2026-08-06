@@ -5716,7 +5716,10 @@ function _resolveCallLlmForProfile(profile) {
         };
     }
     if (engine === 'bedrock-direct') {
-        return async (messages) => bedrockInvokeModelCall(profile, messages);
+        // Routes live in connectors/bedrock.js now; the suggest path talks to
+        // the shared transport in lib/bedrock directly.
+        const { bedrockInvokeModel } = require('./lib/bedrock');
+        return async (messages) => bedrockInvokeModel(profile, messages);
     }
     // bedrock-rag is RetrieveAndGenerate (KB-coupled) and is not appropriate
     // for the strict-JSON suggest prompt. Skip it.
@@ -6190,320 +6193,13 @@ app.post('/openai/conversations/:conversationId/messages', async (req, res) => {
     }
 });
 
-// ── AWS Bedrock routes ────────────────────────────────────────────────────────
-// Routes requests to AWS Bedrock Knowledge Bases via RetrieveAndGenerate API.
-// Conversation history is maintained in-memory so follow-up questions work.
-//
-// Profile fields used (add to config.json profiles):
-//   bedrockRegion         — AWS region, e.g. us-east-1
-//   bedrockKnowledgeBaseId — Knowledge Base ID from AWS console
-//   bedrockModelArn       — Model ARN, e.g. anthropic.claude-3-5-sonnet-20241022-v2:0
-//   bedrockAccessKeyId    — AWS access key ID
-//   bedrockSecretAccessKey — AWS secret access key
-//
-// For production, prefer IAM role via Lambda/API Gateway rather than static keys.
-
-const bedrockSessionMap = new Map(); // conversationId → { sessionId, storedAt }
-
-function resolveBedrockProfile(body, headers, req) {
-    const profileName = headers['x-assistant-profile'] || body?.assistantProfile || 'default';
-    const resolved = profileByName(profileName, req) || profileByName('default', req);
-    const profile = resolved?.profile;
-    // IDEA-040 Phase 2 — accept either KB-coupled (RAG) profiles or
-    // bedrock-direct profiles (only requires AWS creds + region; KB id
-    // not needed).
-    if (!profile) return null;
-    const engine = resolveEngine(profile);
-    if (engine === 'bedrock-rag' || engine === 'bedrock-direct') {
-        return { profile, name: resolved.name };
-    }
-    if (profile.bedrockKnowledgeBaseId) return { profile, name: resolved.name };
-    return null;
-}
-
-async function bedrockRetrieveAndGenerate(profile, input, sessionId) {
-    // IDEA-040 cleanup — delegate to the shared SigV4 signer in
-    // proxy/lib/bedrock.js so we maintain one implementation, not two.
-    // Behavior is byte-identical to the previous inline version.
-    const { bedrockRetrieveAndGenerate: libRetrieveAndGenerate } = require('./lib/bedrock');
-    return libRetrieveAndGenerate(profile, input, sessionId);
-}
-
-app.get('/bedrock/health', (req, res) => {
-    const resolved = resolveBedrockProfile({}, req.headers, req);
-    if (!resolved) {
-        if (req._allowlistRejection) return sendAllowlistRejection(req, res, req._allowlistRejection);
-        return res.status(503).json({ ok: false, error: 'No AWS Bedrock profile configured. Add bedrockKnowledgeBaseId, bedrockRegion, bedrockModelArn, bedrockAccessKeyId, and bedrockSecretAccessKey to the proxy profile.' });
-    }
-    const engine = resolveEngine(resolved.profile);
-    res.json({
-        ok: true,
-        engine: engine || 'bedrock-rag',
-        model: resolved.profile.bedrockModelArn || resolved.profile.bedrockModelId || 'anthropic.claude-3-5-sonnet-20241022-v2:0',
-        knowledgeBaseId: resolved.profile.bedrockKnowledgeBaseId || null,
-    });
-});
-
-// IDEA-040 Phase 2 — direct-mode helper. Calls Bedrock InvokeModel
-// (the new lib/bedrock.js entry point) and returns plain text.
-async function bedrockInvokeModelCall(profile, messages, opts = {}) {
-    const { bedrockInvokeModel } = require('./lib/bedrock');
-    return bedrockInvokeModel(profile, messages, opts);
-}
-
-app.post('/bedrock/conversations/start', async (req, res) => {
-    const resolved = resolveBedrockProfile(req.body, req.headers, req);
-    if (!resolved) return sendNoMatchingProfile(req, res, 400, 'No AWS Bedrock profile configured.');
-
-    const { pack, subVertical } = req.body;
-    // Phase 11b prep — bridge body.frame into content (idempotent, no-op
-    // for free-text). See proxy/lib/frameContext.js + Genie route at
-    // app.post('/assistant/conversations/start') for the byte-identity contract.
-    const frame = validateFrame(req.body && req.body.frame);
-    const content = prependFrameContext(req.body.content, frame);
-    const convId = `bedrock-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const engine = resolveEngine(resolved.profile) || 'bedrock-rag';
-
-    // Cycle C — pack-context resolution. Same audit shape as the Genie + OpenAI
-    // routes so a single grep correlates every injection site.
-    const packResolved = resolvePackContext({ pack, subVertical });
-    if (packResolved.requested) {
-        auditLog(req, {
-            profileName: resolved.name,
-            action: 'pack-context-inject',
-            status: packResolved.resolved ? 'OK' : 'WARN',
-            detail: JSON.stringify({ ...buildPackAuditDetail(packResolved), backend: 'bedrock', engine }),
-            spIdentityHash: spHashForProfile(resolved.profile),
-        });
-    }
-    if (frame) {
-        auditLog(req, {
-            profileName: resolved.name,
-            action: 'frame-context-inject',
-            status: 'OK',
-            detail: JSON.stringify({ ...buildFrameAuditDetail(frame), backend: 'bedrock', engine }),
-            spIdentityHash: spHashForProfile(resolved.profile),
-        });
-    }
-
-    // Phase 2 — bedrock-direct + analytics mode → orchestrator path.
-    const hasAnalyticsContext =
-        resolved.profile.schemaContext ||
-        (resolved.profile.warehouseId && (resolved.profile.catalog || resolved.profile.databricksCatalog));
-    if (engine === 'bedrock-direct' && resolved.profile.mode === 'analytics' && hasAnalyticsContext) {
-        try {
-            const msgId = `bedrock-msg-${Date.now()}`;
-            const callLlm = async (messages) => {
-                let capturedUsage = null;
-                const content = await bedrockInvokeModelCall(resolved.profile, messages, {
-                    onUsage: u => { capturedUsage = u; },
-                });
-                return { content, usage: capturedUsage };
-            };
-            // Cycle 17 — symmetric per-request validation-retry override.
-            const parsedClientRetries = parseClientMaxRetries(req);
-            const { result, retried, attempts } = await runAnalyticsOrchestrator({
-                profile: resolved.profile, content, callLlm, convId, msgId,
-                packContext: packResolved.resolved ? packResolved.content : null,
-                clientMaxRetries: parsedClientRetries,
-            });
-            const responsePayload = {
-                conversation_id: convId,
-                message_id: JSON.stringify(result),
-                status: result.status,
-                content: result.content,
-                sqlQuery: result.sqlQuery,
-                ...(result.usage ? { usage: result.usage } : {}),
-            };
-            console.log(`[bedrock/analytics] profile=${resolved.name} conv=${convId} status=${result.status} attempts=${attempts} retried=${retried}`);
-            return res.json(withGovernance(req, resolved.profile, 'bedrock-direct', responsePayload));
-        } catch (err) {
-            console.error('[bedrock/analytics]', err.message);
-            return sendProblem(res, createProblem({
-                status: 500,
-                code: 'BEDROCK_ANALYTICS_FAILED',
-                title: 'Bedrock analytics request failed',
-                detail: UNEXPECTED_INTERNAL_SENTINEL,
-                category: 'unexpected_internal',
-                requestId: req.requestId,
-                retryable: false,
-            }));
-        }
-    }
-
-    // Phase 2 — bedrock-direct chat-only (no analytics): plain InvokeModel.
-    // Cycle C — when pack-context is resolved, prepend it as a system message
-    // so the model adopts sub-vertical vocabulary. The Anthropic Messages
-    // payload wrapper (see lib/bedrock.js) accepts a leading system message.
-    //
-    // Probe-once cross-backend reuse — folds the discovery summary into the
-    // same system message alongside pack context.
-    const bedrockDiscoveryBlock = _formatDiscoveryContext(req.body && req.body.discoveryContext);
-    const bedrockPackTag = packResolved.subVertical
-        ? `${packResolved.pack}/${packResolved.subVertical}`
-        : (packResolved.pack || 'pack');
-    if (bedrockDiscoveryBlock) {
-        auditLog(req, {
-            profileName: resolved.name,
-            action: 'discovery-context-inject',
-            status: 'OK',
-            detail: JSON.stringify({ ...buildDiscoveryAuditDetail(bedrockDiscoveryBlock), backend: 'bedrock', engine }),
-            spIdentityHash: spHashForProfile(resolved.profile),
-        });
-    }
-    if (engine === 'bedrock-direct') {
-        try {
-            const bedrockDirectSystemContent = _composeSystemPromptWithContext({
-                systemPrompt: null,
-                discoveryBlock: bedrockDiscoveryBlock,
-                packBlock: (packResolved.resolved && packResolved.content) ? packResolved.content : null,
-                packTag: bedrockPackTag,
-            });
-            const messages = bedrockDirectSystemContent
-                ? [{ role: 'system', content: bedrockDirectSystemContent }, { role: 'user', content }]
-                : [{ role: 'user', content }];
-            let capturedUsage = null;
-            const answer = await bedrockInvokeModelCall(resolved.profile, messages, {
-                onUsage: u => { capturedUsage = u; },
-            });
-            const usage = _sanitizeUsageBlock(capturedUsage);
-            const msgId = JSON.stringify({ id: convId, status: 'COMPLETED', content: answer, ...(usage ? { usage } : {}) });
-            console.log(`[bedrock/direct/start] profile=${resolved.name} conv=${convId}`);
-            return res.json(withGovernance(req, resolved.profile, 'bedrock-direct', {
-                conversation_id: convId,
-                message_id: msgId,
-                status: 'COMPLETED',
-                content: answer,
-                ...(usage ? { usage } : {}),
-            }));
-        } catch (err) {
-            console.error('[bedrock/direct/start]', err.message);
-            return sendProblem(res, createProblem({
-                status: 500,
-                code: 'BEDROCK_DIRECT_START_FAILED',
-                title: 'Bedrock direct chat start failed',
-                detail: UNEXPECTED_INTERNAL_SENTINEL,
-                category: 'unexpected_internal',
-                requestId: req.requestId,
-                retryable: false,
-            }));
-        }
-    }
-
-    // Existing RAG path. Cycle C — pack-context is prepended to the user's
-    // input text as a header (Bedrock RetrieveAndGenerate has no system-prompt
-    // slot in the v1 KB-coupled API), mirroring the Genie shape.
-    // Probe-once cross-backend reuse — discovery rides the same user-message
-    // header path (no system slot available on KB-coupled invocations).
-    const ragInput = _composeUserMessageWithContext({
-        discoveryBlock: bedrockDiscoveryBlock,
-        packBlock: (packResolved.resolved && packResolved.content) ? packResolved.content : null,
-        packTag: bedrockPackTag,
-        userQuestion: content,
-    });
-    try {
-        const data = await bedrockRetrieveAndGenerate(resolved.profile, ragInput, null);
-        const answer = data.output?.text ?? '';
-        const sessionId = data.sessionId;
-        if (sessionId) bedrockSessionMap.set(convId, { sessionId, storedAt: Date.now() });
-
-        const msgId = JSON.stringify({ id: convId, status: 'COMPLETED', content: answer, citations: data.citations ?? [] });
-        console.log(`[bedrock/start] profile=${resolved.name} conv=${convId} session=${sessionId}`);
-        res.json(withGovernance(req, resolved.profile, 'bedrock-rag', {
-            conversation_id: convId,
-            message_id: msgId,
-            status: 'COMPLETED',
-            content: answer,
-        }));
-    } catch (err) {
-        console.error('[bedrock/start]', err.message);
-        sendProblem(res, createProblem({
-            status: 500,
-            code: 'BEDROCK_RAG_START_FAILED',
-            title: 'Bedrock RAG conversation start failed',
-            detail: UNEXPECTED_INTERNAL_SENTINEL,
-            category: 'unexpected_internal',
-            requestId: req.requestId,
-            retryable: false,
-        }));
-    }
-});
-
-app.post('/bedrock/conversations/:conversationId/messages', async (req, res) => {
-    const { conversationId } = req.params;
-    const resolved = resolveBedrockProfile(req.body, req.headers, req);
-    if (!resolved) return sendNoMatchingProfile(req, res, 400, 'No AWS Bedrock profile configured.');
-
-    const { content } = req.body;
-    const sessionEntry = bedrockSessionMap.get(conversationId);
-    const sessionId = sessionEntry?.sessionId || null;
-    const engine = resolveEngine(resolved.profile) || 'bedrock-rag';
-
-    // Phase 2 — bedrock-direct chat follow-up (no session map; one-shot).
-    if (engine === 'bedrock-direct') {
-        try {
-            const messages = [{ role: 'user', content }];
-            const answer = await bedrockInvokeModelCall(resolved.profile, messages);
-            const msgId = JSON.stringify({ id: `${conversationId}-${Date.now()}`, status: 'COMPLETED', content: answer });
-            console.log(`[bedrock/direct/send] profile=${resolved.name} conv=${conversationId}`);
-            return res.json(withGovernance(req, resolved.profile, 'bedrock-direct', {
-                conversation_id: conversationId,
-                message_id: msgId,
-                status: 'COMPLETED',
-                content: answer,
-            }));
-        } catch (err) {
-            console.error('[bedrock/direct/send]', err.message);
-            return sendProblem(res, createProblem({
-                status: 500,
-                code: 'BEDROCK_DIRECT_SEND_FAILED',
-                title: 'Bedrock direct chat follow-up failed',
-                detail: UNEXPECTED_INTERNAL_SENTINEL,
-                category: 'unexpected_internal',
-                requestId: req.requestId,
-                retryable: false,
-            }));
-        }
-    }
-
-    try {
-        const data = await bedrockRetrieveAndGenerate(resolved.profile, content, sessionId);
-        const answer = data.output?.text ?? '';
-        const newSessionId = data.sessionId;
-        if (newSessionId) bedrockSessionMap.set(conversationId, { sessionId: newSessionId, storedAt: Date.now() });
-
-        const msgId = JSON.stringify({ id: `${conversationId}-${Date.now()}`, status: 'COMPLETED', content: answer, citations: data.citations ?? [] });
-        console.log(`[bedrock/send] profile=${resolved.name} conv=${conversationId}`);
-        res.json(withGovernance(req, resolved.profile, 'bedrock-rag', {
-            conversation_id: conversationId,
-            message_id: msgId,
-            status: 'COMPLETED',
-            content: answer,
-        }));
-    } catch (err) {
-        console.error('[bedrock/send]', err.message);
-        sendProblem(res, createProblem({
-            status: 500,
-            code: 'BEDROCK_RAG_SEND_FAILED',
-            title: 'Bedrock RAG follow-up message failed',
-            detail: UNEXPECTED_INTERNAL_SENTINEL,
-            category: 'unexpected_internal',
-            requestId: req.requestId,
-            retryable: false,
-        }));
-    }
-});
-
+// The Bedrock session map (and its prune loop) moved to connectors/bedrock.js
+// with the rest of the /bedrock/* surface (Phase B pilot migration).
 function pruneSessionMaps() {
     const cutoff = Date.now() - SESSION_STATE_TTL_MS;
     for (const [id, entry] of openAiConversationHistory.entries()) {
         if (!entry?.storedAt || entry.storedAt < cutoff) {
             openAiConversationHistory.delete(id);
-        }
-    }
-    for (const [id, entry] of bedrockSessionMap.entries()) {
-        if (!entry?.storedAt || entry.storedAt < cutoff) {
-            bedrockSessionMap.delete(id);
         }
     }
 }
@@ -9257,6 +8953,12 @@ try {
             conversationDispatch: createConversationDispatch(),
             callLlmProviders: createCallLlmProviders(),
             sectionedRunners: createSectionedRunners(),
+            // Phase B — shared helpers the migrated bedrock connector proved out
+            // (each also serves openai / foundation / genie, so they earn a
+            // host seat per the two-connector rule).
+            resolveEngine, sendAllowlistRejection, parseClientMaxRetries,
+            runAnalyticsOrchestrator, sanitizeUsageBlock: _sanitizeUsageBlock,
+            sessionStateTtlMs: SESSION_STATE_TTL_MS,
         });
         const _registered = registerConnectors(_connectors, _connectorHost, { onWarn: _connectorWarn });
         if (_registered.length) {
