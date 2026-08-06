@@ -6439,6 +6439,41 @@ function defaultSystemPromptForSection(sectionTitle) {
     return baseHeader;
 }
 
+// Prompt IR wired into serving (Phase 11b, first slice — 2026-08-06).
+// When a /foundation/section caller names a pack and supplies no explicit
+// systemPrompt, the pack's authored prompt-ir.yaml drives the system prompt
+// through the foundation-model translator. This route previously injected NO
+// pack context at all (packBlock was hard-null), so the slice is additive:
+// no pack named, or an explicit systemPrompt, or no usable IR → exactly the
+// old behaviour. Returns null unless an actual IR (authored or synthetic)
+// produced a non-empty system message.
+function irSystemPromptForPack(body, userPrompt) {
+    const pack = typeof body?.pack === 'string' ? body.pack.trim() : '';
+    if (!pack) return null;
+    const subVertical = typeof body?.subVertical === 'string' ? body.subVertical.trim() : '';
+    try {
+        const { buildBackendPayload } = require('./lib/promptDispatcher');
+        // The route IS the foundation-model backend regardless of the
+        // profile's exact type alias, so dispatch as that translator.
+        const dispatched = buildBackendPayload({ type: 'foundation-model' }, {
+            pack, subVertical, userQuestion: userPrompt,
+        });
+        if (!dispatched || dispatched.irSource === 'none') return null;
+        const sys = Array.isArray(dispatched.payload?.messages)
+            ? dispatched.payload.messages.find((m) => m.role === 'system')
+            : null;
+        if (!sys || typeof sys.content !== 'string' || !sys.content.trim()) return null;
+        return {
+            systemPrompt: sys.content,
+            irSource: dispatched.irSource,
+            irId: dispatched.ir?.id || null,
+        };
+    } catch (err) {
+        console.warn('[prompt-ir] dispatch failed, using default section prompt:', err.message);
+        return null;
+    }
+}
+
 app.get('/foundation/health', (req, res) => {
     const resolved = resolveFoundationModelProfile({}, {}, req);
     const configured = profileRegistry.entries()
@@ -7046,9 +7081,21 @@ app.post('/foundation/section', async (req, res) => {
 
     const effectiveResponseFormat = responseFormat
         || (useStructuredOutput && presetKey ? FOUNDATION_RESPONSE_SCHEMAS[presetKey] : null);
+    const irDerived = (typeof systemPrompt === 'string' && systemPrompt.trim())
+        ? null
+        : irSystemPromptForPack(req.body, userPrompt);
     const baseSystemPrompt = (typeof systemPrompt === 'string' && systemPrompt.trim())
         ? systemPrompt
-        : defaultSystemPromptForSection(sectionTitle);
+        : (irDerived ? irDerived.systemPrompt : defaultSystemPromptForSection(sectionTitle));
+    if (irDerived) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'prompt-ir-inject',
+            status: 'OK',
+            detail: JSON.stringify({ irSource: irDerived.irSource, irId: irDerived.irId, backend: 'foundation-model', section: upperTitle || '-' }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+    }
 
     // Probe-once cross-backend reuse — when the client supplies a cached
     // DiscoverySnapshot summary, fold it into the system prompt alongside
