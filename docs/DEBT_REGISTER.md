@@ -41,15 +41,15 @@ Legend — Risk: how dangerous the fix is. Decision: `—` = executable as descr
 | **Decision** | Resolved for now: KEEP, mark ownership in a header comment. Revisit only if the PBI enabler's authoring needs change. |
 | **Status** | INVESTIGATED-KEEP (2026-07-28) — severity downgraded from HIGH-delete to documented dual-surface |
 
-## D4 — Dormant Prompt IR (built, tested, wired to nothing)
+## D4 — Dormant Prompt IR (built, tested, wired to nothing) — **first serving slice landed 2026-08-06**
 
 | | |
 |---|---|
-| **Evidence** | `promptDispatcher.buildBackendPayload` has **zero** callers in `server.js`; live routes inject Genie-shaped `prompt-context.md` verbatim into every backend (`server.js:3576`, `:7347`). `foundationModelClient` discards the `tools[]` the translator already emits. |
-| **Target state** | Not deletion — **wiring**. This is the strategic seam of the domain-guidance unification (memory `project_domain_guidance_feasibility_2026_07_27`, slice 4) and the tool-calling path for the agent planner. |
-| **Risk** | High (touches the core AI path for every backend) — do as a focused, reviewed effort with byte-compat fallback (translator already guarantees Genie parity). |
+| **Evidence** | Was: `promptDispatcher.buildBackendPayload` had **zero** callers in `server.js`. Since `3f92621`: `/foundation/section` derives its system prompt from the pack's `prompt-ir.yaml` via the foundation-model translator when the caller names a pack and supplies no explicit `systemPrompt` (audit action `prompt-ir-inject`; 5 tests pin the precedence using the real cpg-fmcg/supply-chain IR). Still true: no OTHER route calls the dispatcher; no client yet sends `pack` to `/foundation/section`; `foundationModelClient` still discards the `tools[]` the translator emits. |
+| **Target state** | Continue the wiring — next slices: client forwards pack selection on the insights path (lights up the landed slice), then the Genie start route via the byte-identity guarantee, then `tools[]` consumption. Strategic seam of the domain-guidance unification (memory `project_domain_guidance_feasibility_2026_07_27`, slice 4). |
+| **Risk** | The landed slice was chosen because it was additive (the route injected no pack context at all). The Genie-route slice remains High (core AI path) — do as a focused, reviewed effort with byte-compat fallback (translator already guarantees Genie parity). |
 | **Decision** | — (sequencing only: after D1, with the unification) |
-| **Status** | OPEN — deliberate, keep; do not "clean up" by deleting |
+| **Status** | PARTIALLY DISCHARGED — first slice serving; remainder OPEN and deliberate |
 
 ## D5 — `visual.tsx` at 13,485 lines (measured 2026-07-28)
 

@@ -1,11 +1,53 @@
 ---
 name: PulsePlay current state
-description: As of 2026-07-31 - branch design/nav-consistency at 034250f - ALL GREEN - proxy 1553/1553 (88 suites), playground 2019/2019 (157 files), evals 23/23, tsc + build clean. Enterprise-safe OSS brought in - four real shipping CVEs fixed (all runtime trees 0/0/0/0), evidence-derived licence gate + scheduled scan + SBOM from npm built-ins only, zero-dep answer-reconciliation harness in evals/, Keycloak dev IdP in dev/idp/ (NOT booted - no docker on this box). Nine commits of chart-honesty work retro-logged. Historical arcs in body.
+description: As of 2026-08-06 - branch feat/road-to-95, 11 commits 319bc1f..3f92621 - proxy 1565/1565 (89 suites), evals 49/49, golden set 4->36 cases across 3 connectors (32 NOT yet live-run), hallucination gate + judge v0, dev/idp BOOTED no-docker + 7/7 real-token verify, bedrock migrated to proxy/connectors/ (Phase B), Prompt IR serving its first route (/foundation/section), doc-claims CI gate (105 checks), Azure OpenAI key-name/env-var shape fixes, aibi SDK promotion blocked upstream (no licence). Historical arcs in body.
 type: project
 originSessionId: current
 ---
 
-**Current state - 2026-07-31 (enterprise-safe OSS; supply chain hardened):**
+**Current state - 2026-08-06 (the road-to-9.5 arc):**
+Branch `feat/road-to-95`, 11 commits `319bc1f`→`3f92621` on top of `c06a1e9`.
+Proxy **1565/1565** (89 suites), **evals 49/49**; playground sweep re-running at
+write time (was 2019/2019 at `034250f`; only manifest-neutral files touched).
+
+- **Evals ×9**: 4 plumbing defects fixed (`--profile` was a NO-OP — sent
+  `profile`, routes read `assistantProfile`; no Genie poll; single profile for
+  truth+answer; unread PBI/FM carriers). Golden set 4→36 across Genie
+  metric-views / PBI-DAX / FM-grounded suites with per-suite
+  `answerProfile`/`truthProfile`. **32 new cases NOT live-run yet** — the live
+  claim is still the 4 validated 2026-07-31 cases. Hallucination gate =
+  proxy's groundingVerifier in new `{scale:'roman'}` mode (M=thousand; FM path
+  keeps industry default). Judge v0 = `npm run judge`, reporting-only.
+- **`dev/idp` BOOTED without docker** — `run-keycloak-nodocker.ps1` (pinned
+  KC 26.0.7 + pinned Temurin 21 JRE, SHA256-verified, gitignored `.runtime/`);
+  `verify-idp-live.mjs` **7/7** — real RS256 through the actual `jwtVerify`
+  path (jest can't reach it: NODE_ENV=test short-circuit). Latest+42's
+  "not booted" caveat discharged.
+- **Connector plugin Phase B done** (`d6f6baf`): bedrock →
+  `proxy/connectors/bedrock.js`, first `conversationDispatch` entry (ladder
+  does NOT consult it yet — deliberate), 6 host members each justified by ≥2
+  connectors, rawErrLeakInvariant widened to connectors/. Next: Phase C.
+- **Prompt IR first serving slice** (`3f92621`): `/foundation/section` derives
+  its system prompt from pack `prompt-ir.yaml` (was packBlock:null, so purely
+  additive). No client sends `pack` there yet — hookup is the next slice.
+  DEBT_REGISTER D4 now PARTIALLY DISCHARGED.
+- **Doc-claims CI gate** (`83e0045`): `scripts/check-doc-claims.mjs`, 105
+  checks in the evals job; first run caught UnifiedAssistantSurface.tsx gone
+  (PulsePlayScreen.tsx owns the screen).
+- **Azure OpenAI shape honesty** (`4a4bee5`): manifests/docs said
+  `azureOpenAiApiKey`, route reads `azureOpenAiKey` (authored profiles
+  silently 401'd); `AZURE_OPENAI*` env fields were silently dropped (now in
+  ENV_PROFILE_FIELDS + regression test); api-version default is `2024-02-01`
+  everywhere. Still code-present-unproven live.
+- **aibi SDK promotion BLOCKED upstream**: no license field in any published
+  `@databricks/aibi-client` (through 1.0.3-alpha.0) — fails our own licence
+  gate; recorded in package.json omission comment with re-check trigger.
+- **Tripwire**: original 4 scm.json eval cases reference
+  `main.supply_chain.fact_supply_chain_kpi_monthly`; the genie-scm-poc space
+  is configured over `workspace.databrickspractice` metric views — reconcile
+  which profile answers them before the first multi-suite live run.
+
+**Previous state - 2026-07-31 (enterprise-safe OSS; supply chain hardened):**
 Branch `design/nav-consistency` at `034250f`. **All green:** proxy **1553/1553**
 (88 suites), playground **2019/2019** (157 files), **evals 23/23**, tsc + build
 clean.
