@@ -187,8 +187,11 @@ const MANIFESTS = [
             displayName:             { kind: 'string', required: false, label: 'Display name' },
             azureOpenAiEndpoint:     { kind: 'url',    required: true,  label: 'Endpoint', help: 'https://<resource>.openai.azure.com' },
             azureOpenAiDeployment:   { kind: 'string', required: true,  label: 'Deployment name' },
-            azureOpenAiApiKey:       { kind: 'secret', required: true,  label: 'API key', secret: true },
-            azureOpenAiApiVersion:   { kind: 'string', required: false, label: 'API version', help: 'Defaults to 2024-08-01-preview' },
+            // Field name matters: the route reads profile.azureOpenAiKey. This
+            // manifest said azureOpenAiApiKey until 2026-08-06, so a profile
+            // authored from the catalogue snippet silently 401'd.
+            azureOpenAiKey:          { kind: 'secret', required: true,  label: 'API key', secret: true },
+            azureOpenAiApiVersion:   { kind: 'string', required: false, label: 'API version', help: 'Defaults to 2024-02-01 (the route default)' },
         },
         setupSteps: [
             'Provision an Azure OpenAI resource in your Azure subscription',
@@ -225,7 +228,7 @@ const MANIFESTS = [
             displayName:             { kind: 'string', required: false, label: 'Display name' },
             azureOpenAiEndpoint:     { kind: 'url',    required: true,  label: 'Endpoint' },
             azureOpenAiDeployment:   { kind: 'string', required: true,  label: 'Deployment name' },
-            azureOpenAiApiKey:       { kind: 'secret', required: true,  label: 'API key', secret: true },
+            azureOpenAiKey:          { kind: 'secret', required: true,  label: 'API key', secret: true },
             warehouseId:             { kind: 'string', required: true,  label: 'Databricks SQL warehouse ID' },
             host:                    { kind: 'url',    required: true,  label: 'Databricks workspace URL' },
             token:                   { kind: 'secret', required: true,  label: 'Databricks PAT (or use OAuth M2M)', secret: true },

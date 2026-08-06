@@ -390,7 +390,7 @@ describe('connectorRegistry — describeRuntimeState', () => {
             profiles: [
                 { name: 'g', type: 'genie', spaceId: 's', host: 'https://x', token: SECRET },
                 { name: 'p', type: 'powerbi-dataset-dax', aadTenantId: 't', aadClientId: 'c', aadClientSecret: SECRET, powerbiGroupId: 'g', powerbiDatasetId: 'd' },
-                { name: 'a', type: 'azure-openai', azureOpenAiEndpoint: 'https://x', azureOpenAiDeployment: 'd', azureOpenAiApiKey: SECRET },
+                { name: 'a', type: 'azure-openai', azureOpenAiEndpoint: 'https://x', azureOpenAiDeployment: 'd', azureOpenAiKey: SECRET },
                 { name: 'b', type: 'bedrock', bedrockRegion: 'us-east-1', bedrockModelId: 'm', awsAccessKeyId: 'k', awsSecretAccessKey: SECRET },
             ],
         });

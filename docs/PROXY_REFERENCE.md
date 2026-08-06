@@ -28,7 +28,7 @@ The playground only calls the proxy. The proxy is what calls the AI backends. He
 
 | HTTP | Endpoint | Used by |
 |---|---|---|
-| POST | `https://{resource}.openai.azure.com/openai/deployments/{deployment}/chat/completions?api-version=2024-02-15-preview` | Each question / sidebar prompt (uses Anthropic Messages format adapter) |
+| POST | `https://{resource}.openai.azure.com/openai/deployments/{deployment}/chat/completions?api-version=2024-02-01` | Each question / sidebar prompt (api-version from the profile, default `2024-02-01`) |
 
 OpenAI mode bypasses Genie entirely — runs through `proxy/lib/llmOrchestrator.js` which adapts to OpenAI's chat-completions format.
 
@@ -373,12 +373,16 @@ No `type` field. `spaceId` is the trigger.
 {
   "azureOpenAiEndpoint": "https://my-resource.openai.azure.com",
   "azureOpenAiDeployment": "gpt-4o",
-  "azureOpenAiApiKey": "...",
-  "azureOpenAiApiVersion": "2024-02-15-preview"
+  "azureOpenAiKey": "...",
+  "azureOpenAiApiVersion": "2024-02-01"
 }
 ```
 
-Triggered by `azureOpenAiEndpoint` presence.
+Triggered by `azureOpenAiEndpoint` presence. The key field is
+`azureOpenAiKey` — this doc said `azureOpenAiApiKey` until 2026-08-06, a name
+the route never read. `azureOpenAiApiVersion` defaults to `2024-02-01` when
+omitted. Profiles can also come from env vars
+(`PROXY_PROFILE_<NAME>_AZURE_OPENAI_*`, mapped since 2026-08-06).
 
 ### 4.6 Azure OpenAI analytics mode
 
@@ -387,7 +391,7 @@ Triggered by `azureOpenAiEndpoint` presence.
   "mode": "analytics",
   "azureOpenAiEndpoint": "...",
   "azureOpenAiDeployment": "...",
-  "azureOpenAiApiKey": "...",
+  "azureOpenAiKey": "...",
   "host": "https://workspace.cloud.databricks.com",
   "warehouseId": "01...",
   "catalog": "main",

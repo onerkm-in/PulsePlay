@@ -302,6 +302,20 @@ const ENV_PROFILE_FIELDS = {
     // Databricks Apps where every config field comes from env vars).
     FOUNDATION_MODEL_ENDPOINT: 'foundationModelEndpoint',
     FOUNDATIONMODELENDPOINT: 'foundationModelEndpoint',
+    // 2026-08-06 — Azure OpenAI. These were the only manifest-advertised
+    // fields with no entry here, so PROXY_PROFILE_<NAME>_AZURE_OPENAI_* env
+    // vars were silently dropped and Azure profiles were config.json-only.
+    AZURE_OPENAI_ENDPOINT: 'azureOpenAiEndpoint',
+    AZUREOPENAIENDPOINT: 'azureOpenAiEndpoint',
+    AZURE_OPENAI_KEY: 'azureOpenAiKey',
+    AZUREOPENAIKEY: 'azureOpenAiKey',
+    AZURE_OPENAI_DEPLOYMENT: 'azureOpenAiDeployment',
+    AZUREOPENAIDEPLOYMENT: 'azureOpenAiDeployment',
+    AZURE_OPENAI_API_VERSION: 'azureOpenAiApiVersion',
+    AZUREOPENAIAPIVERSION: 'azureOpenAiApiVersion',
+    MODE: 'mode',
+    SCHEMA_CONTEXT: 'schemaContext',
+    SCHEMACONTEXT: 'schemaContext',
     // Cycle A — Power BI embed-token issuance. Set these to enable the
     // /assistant/embed-token/powerbi route. Leaving any unset returns 503
     // with a clear "not configured" message rather than silently failing.

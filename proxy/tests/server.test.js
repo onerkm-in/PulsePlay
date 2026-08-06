@@ -1789,6 +1789,27 @@ describe('loadEnvProfiles — generic env-var profile loader (IDEA-016 phase 2)'
             staticProbePath: 'probe.json',
         });
     });
+
+    it('maps the azure-openai env fields (2026-08-06) — they were silently dropped before', () => {
+        const profiles = loadEnvProfiles({
+            PROXY_PROFILE_AOAI_TYPE: 'azure-openai',
+            PROXY_PROFILE_AOAI_AZURE_OPENAI_ENDPOINT: 'https://myres.openai.azure.com',
+            PROXY_PROFILE_AOAI_AZURE_OPENAI_KEY: 'azure-key',
+            PROXY_PROFILE_AOAI_AZURE_OPENAI_DEPLOYMENT: 'gpt-4o',
+            PROXY_PROFILE_AOAI_AZURE_OPENAI_API_VERSION: '2024-02-01',
+            PROXY_PROFILE_AOAI_MODE: 'analytics',
+            PROXY_PROFILE_AOAI_SCHEMA_CONTEXT: 'tables: fct_sales(...)',
+        });
+        expect(profiles.aoai).toEqual({
+            type: 'azure-openai',
+            azureOpenAiEndpoint: 'https://myres.openai.azure.com',
+            azureOpenAiKey: 'azure-key',
+            azureOpenAiDeployment: 'gpt-4o',
+            azureOpenAiApiVersion: '2024-02-01',
+            mode: 'analytics',
+            schemaContext: 'tables: fct_sales(...)',
+        });
+    });
 });
 
 describe('env-var profile layering — overrides config.json fields per-profile', () => {
