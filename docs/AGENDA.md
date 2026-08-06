@@ -8,6 +8,23 @@
 
 Ordered by impact × cost. Each item is independently shippable.
 
+- [x] **ROAD-TO-95 — SHIPPED 2026-08-06** (11 commits `319bc1f`→`3f92621`, HANDOVER
+  latest+43). The claims-vs-runs arc: **EVAL-WIDEN** — 4 harness plumbing defects
+  fixed (inert `--profile`, no Genie poll, single truth/answer profile, unread
+  PBI/FM carriers), golden set 4→36 cases across 3 connectors, deterministic
+  hallucination gate (groundingVerifier `{scale:'roman'}`), LLM-judge v0
+  (reporting-only). **DEV-IDP-BOOT** — the "first person with docker" caveat below
+  is discharged docker-free: `run-keycloak-nodocker.ps1` + `verify-idp-live.mjs`
+  7/7 real-token checks. **Connector plugin Phase B** — bedrock migrated (see the
+  Phase B item further down, now closed). **PROMPT-IR-SLICE-1** — `/foundation/section`
+  serves IR-derived system prompts (DEBT_REGISTER D4 partially discharged).
+  **DOC-CLAIMS-GATE** — `scripts/check-doc-claims.mjs` in CI, 105 checks.
+  **AOAI-SHAPE** — key-name mismatch + dropped env fields fixed.
+  *Open follow-ups:* first live run of the 32 new eval cases + judge (explicit
+  spend); client-side pack forwarding to light the IR slice for real users;
+  Phase C connector migrations; the scm.json-vs-genie-space estate tripwire in
+  HANDOVER latest+43.
+
 - [x] **SEC-SUPPLYCHAIN — SHIPPED 2026-07-31** (`e434640` + `0507084`). Audit
   found real advisories in code that SHIPS, not just test tooling: proxy
   `js-yaml` quadratic-CPU (high), `qs` DoS, `body-parser` limit bypass; desktop
@@ -564,7 +581,7 @@ Ordered by impact × cost. Each item is independently shippable.
 - [x] **Power BI semantic-model clean enablement P0** — Done across cycles; item was stale. (1) Ask Pulse routing: `/assistant/conversations/start` + `/messages` delegate `type: "powerbi-semantic-model"` profiles to `startPowerBiConversation` (`server.js:3453`/`3630`) — profile-type routing on the shared route rather than a separate `/api/powerbi/...` endpoint, same outcome. (2) Env field mappings: `POWER_BI_GROUP_ID`/`POWERBI_GROUP_ID` → `powerbiGroupId`, `POWER_BI_DATASET_ID`/`POWERBI_DATASET_ID` → `powerbiDatasetId` (`server.js:336-341`). (3) Metadata probe fails gracefully: bare `INFO.*` → `INFO.VIEW.*` fallback for delegated user tokens (`connectorProbe.js:455-512`, commit `b5441a9`, verified live 2026-06-07). Verified stale 2026-06-08.
 - [x] **FM orchestrator retry budget symmetry** — Already shipped (Cycle 17, 2026-05-20); item was stale. `llmOrchestrator.js:251-255` resolves its validation-retry budget via the shared `validationRetryBudget.resolveBudget({ envValue: ORCHESTRATOR_VALIDATE_RETRIES, clientValue: clientMaxRetries })` — the SAME helper the Genie poll path uses (`server.js:3821` in `maybeValidateGeniePollResponse`), so `clientMaxRetries` from the request body wins over the env baseline on both paths. Tested: `tests/validationRetryBudget.test.js` ("client override wins over env when supplied") + `tests/llmOrchestratorRetryBudget.test.js`. Verified stale 2026-06-08.
 - [x] **PBI RLS impersonation from IdP claims** — Done; item was stale. The DAX conversation route now derives effective identities from IdP claims: `startPowerBiConversation` (`server.js:6541`) calls `_resolvePowerBIIdentities({ req, profile, datasetId })` at route entry — BEFORE any schema probe / question match / DAX execution — and fail-closes (`powerbi-dax-rls-blocked`) when RLS is configured but no server-side user claim resolves, so SP-scoped execution can't bypass row security. Uses the same `powerBiRlsUsernameClaim` resolution (`server.js:4365-4408`) as the embed-token path. Verified stale 2026-06-08.
-- [ ] **Connector plugin architecture — Phase B (one pilot)** — migrate `bedrock` (both -direct and -RAG) into `proxy/connectors/bedrock.js`. Validates the contract from Phase A. ~1 day.
+- [x] **Connector plugin architecture — Phase B (one pilot) — SHIPPED 2026-08-06** (`d6f6baf`). `bedrock` (both -direct and -RAG) migrated into `proxy/connectors/bedrock.js`; first real `conversationDispatch` entry (the `/assistant` ladder does not consult it yet — that flip comes with Phase C); 6 host members added, each justified by ≥2 connectors; `rawErrLeakInvariant` widened to scan `proxy/connectors/*.js`. Proxy 1565/1565.
 - [ ] **Pulse tab integration for PBI Q&A** — make Q&A a 3rd tab next to AI Insights / Ask Pulse when the active profile is `powerbi-semantic-model`. `pulse/visual.tsx` has 20+ `activeTab` call sites; this is a UX cycle on its own. ~half-day to a day.
 - [ ] **Connector plugin architecture — Phase C (rest)** — migrate the remaining 5 connectors one PR at a time (openai → foundation-model → supervisor → powerbi → genie). Each ~half-day. Total ~3-5 days, but each PR is independently shippable.
 - [ ] **`origin/main` reconciliation** — `origin/publish/local-main-2026-05-20` and `origin/main` share NO common ancestor (cycle-11 finding). 496 files differ. Strategic decision: forward-port the 50 unique origin/main commits onto publish, OR cherry-pick recent publish work back to origin/main. Multi-day strategic cycle, not a code task.
