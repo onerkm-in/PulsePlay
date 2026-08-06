@@ -9,7 +9,7 @@
 ### 1. Structural correctness (automated)
 
 - **1553 jest tests in `proxy/`** (88 suites; verified 2026-07-31, HEAD `034250f`), covering profile resolution, OAuth M2M flow, X-Request-Id correlation, rate limiting, PII redaction, DML keyword blocking, identifier sanitization, supervisor-local fan-out, validator framework, foundation model client, bedrock signing, connector probe, discovery-context injection, pack prompt injection, Power BI embed-token flow, Power BI deterministic semantic-model templates, Power BI Q&A token minting, metadata-read rate-limit exemptions, analytics paths, the PX1 client identity contract, G3 governance attestation route wiring, admin auth-mode parity, SQL preview CTE validation, streaming error redaction, SS2 smoke-fixture profile, and FW1 query-result fixture shape.
-- **23 node:test tests in `evals/`** (verified 2026-07-31) covering the credential-free half of the answer-correctness harness — number extraction including the Roman-scale convention, notation-violation detection, tolerance, and ground-truth column resolution. See §2 below for what this does and does not prove.
+- **49 node:test tests in `evals/`** (verified 2026-08-06) covering the credential-free half of the answer-correctness harness — number extraction including the Roman-scale convention, notation-violation detection, tolerance, ground-truth column resolution, per-backend envelope handling, the grounding (hallucination) check, the judge prompt/verdict logic, and a schema gate over every golden suite. See §2 below for what this does and does not prove.
 - **2019 vitest tests in `playground/`** (157 files, incl. bi-adapter conformance; verified 2026-07-31, HEAD `034250f`), covering BIAdapter conformance, generic iframe behavior, Power BI adapter behavior including secure embed preview and developer snapshots, Tableau/Qlik/Looker iframe stubs, native adapter skeleton guardrails, native governance fail-closed behavior, PulseShell host behavior, health-probe single-flight caching, performance levers, discovery probe status, Power BI Q&A client behavior, AI Insights output polish, card-style Insights rendering, raw-data Excel export helpers, AISidebar, pack preset merge, PII redaction, layout surface availability, Databricks source refs, governance attestation shape validation, native canvas/fusion, G5 BI surface mode, Quick Setup embed config integrity, FW1 AISidebar-to-native envelope mapping, and the pure visualization result-to-chart pipeline.
 - **93 vitest tests in `enablers/pulse-pbi/`** in the latest recorded 2026-05-21 validation, now covering PB1a shared-proxy headers/routes/result parsing in addition to the existing Pulse PBI unit surface. Lint and `pbiviz package` also pass locally, but the `pbiviz` toolchain is not yet pinned in the enabler lockfile.
 
@@ -37,32 +37,40 @@ The old Power BI visual has **37 visual test files** under `genieChatVisual/test
 
 PulsePlay has new tests, but those 37 old tests are not yet ported. This is the single biggest parity gap because it means mature behavior exists without equivalent browser-host regression coverage.
 
-### 2. Answer correctness (semantic) — **partially addressed 2026-07-31**
+### 2. Answer correctness (semantic) — **partially addressed 2026-07-31, widened 2026-08-06**
 
-`evals/` now closes the deterministic part of this. Golden cases carry reference
+`evals/` closes the deterministic part of this. Golden cases carry reference
 SQL that independently establishes the true answer; the harness asks the
 connector, runs that SQL against the same warehouse, and requires the two to
 agree within a stated tolerance. It also gates **number notation** (the Roman
 scale is enforced by guidance rather than code, so a DEC-UNITS regression
-previously had no gate at all). 23 credential-free tests run in CI; the live
+previously had no gate at all). 49 credential-free tests run in CI; the live
 reconciliation is explicit-invocation only, because it costs real spend.
 
-**Still true, and the honest remaining gap.** There is no automated harness
-that:
+**Widened 2026-08-06**, with each claim stated at its true strength:
 
-- **Detects hallucinations** — the AI confidently asserting a fact that isn't in
-  the data. Reconciliation catches a wrong NUMBER; it does not catch a
-  confident wrong CLAIM that carries no number, or a correct number wrapped in
-  a false explanation.
-- **Scores semantic quality** — coherence, whether an explanation follows from
-  the evidence, whether a citation supports what it is attached to. That is
-  LLM-as-judge territory and is not built.
-- **Covers breadth** — the golden set is four SCM cases against one connector.
-  It proves a path works, not that the product is right in general.
+- **Breadth**: the golden set is now **36 cases across 4 suites and 3
+  connectors** — Genie against its own metric views (14), the deterministic
+  PBI-DAX path against the warehouse flat views (10), FM grounded-narration
+  (8), plus the 4 original SCM cases. The 4 originals were live-validated on
+  2026-07-31; **the 32 new cases are structurally gated in CI but have not yet
+  had a live reconciliation run** — that run is explicit-invocation and
+  pending.
+- **Hallucination detection (heuristic v1)**: when an answer carries rows
+  (case-supplied `groundedData` or the envelope's own query result), every
+  number it cites is checked against those rows via the proxy's own
+  `groundingVerifier` in Roman-scale mode. `unverified` fails the case. This
+  catches a right headline number decorated with invented ones. It does NOT
+  catch a confident wrong claim that carries no number, or a correct number
+  wrapped in a false explanation.
+- **LLM-as-judge (v0, reporting-only)**: `run-judge.mjs` scores faithfulness /
+  relevance / coherence against the evidence via the FM connector. Scores are
+  signal, not gate, and the judge itself has not yet been exercised live.
 
-So the headline caveat stands: **tests assert output SHAPE, and now a small
-number of ANSWERS. "All green" still does not mean "answers are right."**
-- Tracks regression in answer quality across releases
+So the headline caveat, updated but standing: **tests assert output SHAPE, and
+now a growing number of ANSWERS. "All green" still does not mean "answers are
+right"** — and a golden case that has never been live-run proves structure,
+not truth. Nothing yet tracks answer-quality regression across releases.
 
 When the team or an external doc claims "output quality is high" — that is a qualitative observation by the maintainer, NOT a number from a measured benchmark.
 
@@ -95,9 +103,9 @@ WCAG compliance is not formally tested. The playground UI is minimal today; a fo
 
 ### Medium-term (v0.3+)
 
-- **Eval suite v1** — 30-50 fixed questions across 3 reference datasets with ground-truth answers. Run nightly. Track regression. Estimated 2 weeks for v1.
-- **Hallucination detector** — post-process AI answers to extract cited numbers and reconcile against the underlying data. Flag when the answer asserts a number not present in the bound data. 1 week heuristic v1; 3+ weeks for a robust LLM-as-judge harness.
-- **Per-connector A/B harness** — same prompt across all 10 backend paths where applicable, side-by-side answer comparison, qualitative score. 1 week.
+- **Eval suite v1** — ~~30-50 fixed questions~~ **landed 2026-08-06**: 36 cases across 3 connectors. Runs on explicit invocation only (the earlier "run nightly" idea contradicted the no-spend-without-intent rule and is dropped; regression tracking across releases means keeping run RESULTS, which is still open).
+- **Hallucination detector** — ~~heuristic v1~~ **landed 2026-08-06** (grounding gate in `run-live.mjs`). The robust judge-backed version remains open: the v0 judge is reporting-only and unproven live.
+- **Per-connector A/B harness** — same prompt across all 10 backend paths where applicable, side-by-side answer comparison, qualitative score. 1 week. (The widened golden set already asks Genie and PBI overlapping questions — `mv-hours-worked-2024` vs `pbi-total-hours-worked` — which is the seed of this.)
 
 ### Long-term
 
@@ -129,12 +137,12 @@ WCAG compliance is not formally tested. The playground UI is minimal today; a fo
 
 ## Why this honesty matters
 
-A sharp evaluator will ask "show me the test results" within 5 minutes. Better to say "1553 proxy tests green; 2019 playground/adapter tests green (both verified 2026-07-31); 23 eval-harness tests green; 93 Pulse PBI enabler unit tests green in the latest recorded validation; SS2/FW1 proxy-backed shell smoke green" than to claim a measured answer-quality number that doesn't exist.
+A sharp evaluator will ask "show me the test results" within 5 minutes. Better to say "1553 proxy tests green; 2019 playground/adapter tests green (both verified 2026-07-31); 49 eval-harness tests green (verified 2026-08-06); 93 Pulse PBI enabler unit tests green in the latest recorded validation; SS2/FW1 proxy-backed shell smoke green" than to claim a measured answer-quality number that doesn't exist.
 
-Since 2026-07-31 there is a *small* true answer-quality claim available, and it is worth stating precisely rather than inflating: **four golden questions reconcile against the warehouse on demand, and the number-notation convention is gated.** That is a real measurement of a real path. It is not a hallucination rate, not a semantic score, and not breadth. Say that sentence, not a bigger one.
+Since 2026-07-31 there is a *small* true answer-quality claim available, and it is worth stating precisely rather than inflating: **four golden questions reconcile against the warehouse on demand, and the number-notation convention is gated.** Since 2026-08-06 the harness is wider — 36 cases, 3 connectors, a deterministic hallucination gate, a reporting-only judge — but the LIVE claim is still the four validated cases until the new suites get their first explicit live run. Say the validated sentence, not the wider one.
 
 The proxy infrastructure is measurably solid, Power BI is the first real BI adapter, and the playground architecture is test-backed. Lead with what's true; let the eval claim grow alongside the actual eval rig.
 
 ---
 
-*Compiled 2026-05-10 during the docs consolidation cycle. Updated 2026-07-31 after a full local re-run: proxy **1553/1553** (jest, 88 suites), playground **2019/2019** (vitest, 157 files), evals **23/23** (node:test), lint clean (`tsc --noEmit`), `vite build` clean. The Pulse PBI enabler 93/93 count was NOT re-verified this session (last recorded 2026-05-23). The eval rig has now partially landed — see §2. The historical Pulse-numbered version is archived at [inherited/PEPPULSE_BEAST_MODE_MEMORY.md](inherited/PEPPULSE_BEAST_MODE_MEMORY.md) and the original `QUALITY_METHODOLOGY.md` content this file pruned from.*
+*Compiled 2026-05-10 during the docs consolidation cycle. Updated 2026-07-31 after a full local re-run: proxy **1553/1553** (jest, 88 suites), playground **2019/2019** (vitest, 157 files), evals **23/23** (node:test), lint clean (`tsc --noEmit`), `vite build` clean. The Pulse PBI enabler 93/93 count was NOT re-verified this session (last recorded 2026-05-23). Updated 2026-08-06: evals **49/49** and the golden set widened to 36 cases across 3 connectors (§2); proxy/playground counts not re-run that session. The historical Pulse-numbered version is archived at [inherited/PEPPULSE_BEAST_MODE_MEMORY.md](inherited/PEPPULSE_BEAST_MODE_MEMORY.md) and the original `QUALITY_METHODOLOGY.md` content this file pruned from.*
